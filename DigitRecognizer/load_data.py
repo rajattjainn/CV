@@ -17,13 +17,13 @@ def read_train_data():
     x_tensor = torch.tensor(x_df.values)
     return x_tensor, y_tensor
 
-def read_test_data():
-    test_df = pd.read_csv(test_data)
-    y_df = test_df.iloc[:,0]
-    y_tensor = torch.tensor(y_df)
-    x_df = test_df.iloc[:, 1:len(test_df.columns)]
-    x_tensor = torch.tensor(x_df.values)
-    return x_tensor, y_tensor
+# def read_test_data():
+#     test_df = pd.read_csv(test_data)
+#     y_df = test_df.iloc[:,0]
+#     y_tensor = torch.tensor(y_df)
+#     x_df = test_df.iloc[:, 1:len(test_df.columns)]
+#     x_tensor = torch.tensor(x_df.values)
+#     return x_tensor, y_tensor
 
 
 #ToDo: convert these functions to return a Dataset instead of tensors
