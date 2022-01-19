@@ -4,3 +4,6 @@ The corresponding Kaggle competition can be found [here](https://www.kaggle.com/
 
 The data has been downloaded from the above website, but the available code was not referred to 
 while coding this problem.
+
+
+The accuracy of the model as found after submitting on Kaggle dashboard is *0.09635*.
