@@ -29,4 +29,5 @@ class SimpleCNN(nn.Module):
         x = self.feature_extractor(x)
         x = torch.flatten(x, 1)
         logits = self.classifier(x)
-        return logits
+        probs = nn.Functional.Softmax(logits, dim=1)
+        return logits, probs
