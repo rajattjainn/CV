@@ -2,7 +2,7 @@ import os
 import datetime
 
 import matplotlib.pyplot as plt
-import numpy as np
+import pandas as pd
 from torch.utils.data import DataLoader
 import torch
 import torch.nn as nn
@@ -10,14 +10,16 @@ import torchvision.transforms as transforms
 
 from torchinfo import summary
 
-from image_utils import DogsCats
+from image_utils import DogsCats, DogsCatsPredict
 from simple_cnn import SimpleCNN
 
 import logging 
 
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
-train_data_path = os.path.join(curr_dir, "Data")
+train_data_path = os.path.join(curr_dir, "Data", "train")
+validate_data_path = os.path.join(curr_dir, "Data", "validate")
+predict_data_path = os.path.join(curr_dir, "Data", "test")
 
 logging.basicConfig(filename="std.log", 
 					format='%(asctime)s %(message)s', 
@@ -34,15 +36,19 @@ The resize dimensions 768x1050 has been arrived at by iterating
 over all the input images (corresponding to both test and train
 data) and finding the maximum dimensions of an image."""
 
-input_transform = transforms.Compose([
+data_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Resize([768, 1050])
 ])
 
-train_data = DogsCats(train_data_path, input_transform)
+train_data = DogsCats(train_data_path, data_transform)
 train_loader = DataLoader(train_data, shuffle=True, batch_size=64)
 
+validate_data = DogsCats(validate_data_path, data_transform)
+validate_loader = DataLoader(validate_data, shuffle=True, batch_size=64)
 
+predict_data = DogsCatsPredict(predict_data_path, data_transform)
+predict_loader = DataLoader(predict_data, shuffle=True, batch_size=64)
 
 #ToDo: put the text outside the text, at bottom or somewhere.
 def plot_loss(y1_data, y2_data, x_data, xlabel, ylabel, title, plot_text):
@@ -68,7 +74,9 @@ def train_model(neural_net, train_loader, lr, momentum,
     running_loss = 0
 
     for batch, (pixels, labels) in enumerate(train_loader):
-            # summary(neural_net, pixels.size())
+        # summary(neural_net, pixels.size())
+        print (pixels.size())
+        print (type(pixels))
 
         y_preds, _ = neural_net(pixels)
         loss = loss_fn(y_preds, labels)
@@ -97,8 +105,6 @@ def validate_model(neural_net, validate_loader, loss_fn):
         running_loss = running_loss + (loss.item() * labels.size(0))
     
     epoch_loss = running_loss/len(validate_loader)
-    # plot_text = "epochs: " + str(epochs) + ";Loss fn: " + type(loss_fn).__name__
-    # plot_loss(x_data, y_data, xlabel="Total Runs", ylabel="Cost", title = type(neural_net).__name__+ " Validate", plot_text = plot_text)
 
     return neural_net, epoch_loss
 
@@ -108,9 +114,10 @@ def get_accuracy(neural_net, data_loader):
 
     for _, (pixels, labels) in enumerate(data_loader):
         _, y_probs = neural_net(pixels)
-        predicted_label = torch.max(y_probs, 1)
-        correct_preds = correct_preds + (predicted_label == labels).sum(0)
-    total_accuracy = correct_preds/(len(data_loader)) * 100
+        _, predicted_label = torch.max(y_probs, 1)
+        correct_preds += (predicted_label == labels).sum()
+    
+    total_accuracy = correct_preds/(len(data_loader))
     return total_accuracy
 
 
@@ -127,9 +134,10 @@ def train_simple_cnn():
 
     for epoch in range(total_epochs):
         neural_net, train_epoch_loss = train_model(simple_cnn, train_loader, learning_rate, momentum, 
-            sgd_optimiser, loss_fn, total_epochs)
+            sgd_optimiser, loss_fn)
         
-        neural_net, validate_epoch_loss = validate_model(neural_net, validate_loader, loss_fn)
+        with torch.no_grad():
+            neural_net, validate_epoch_loss = validate_model(neural_net, validate_loader, loss_fn)
 
         accuracy  = get_accuracy(neural_net, validate_loader)
 
@@ -141,8 +149,28 @@ def train_simple_cnn():
     plot_text = "LR: " + str(learning_rate) + ";momentum: " + str(momentum) + ";epochs: " + str(total_epochs) + ";optimiser: " + type(sgd_optimiser).__name__ + ";Loss fn: " + type(loss_fn).__name__
     plot_loss(training_loss, validation_loss, total_epochs, xlabel="Total Runs", ylabel="Cost", title = type(neural_net).__name__ + " Train", plot_text = plot_text)
 
-    train_model(simple_cnn, train_loader, learning_rate, momentum, 
-            sgd_optimiser, loss_fn, total_epochs)
+    return neural_net
 
 
-train_simple_cnn()
+def predict_output(neural_net, predict_loader):
+    data = {'id':[],
+        'label':[]}
+    for _, (x_pixels, filename) in enumerate(predict_loader):
+        _, pred_probs = neural_net(x_pixels)
+        _, predicted_label = torch.max(pred_probs, 1)
+        data["id"].extend(filename)
+        data["label"].extend(predicted_label.numpy())
+    
+    df = pd.DataFrame(data)
+    df.to_csv("output.csv",index=False)
+
+# trained_net = train_simple_cnn()
+# torch.save(trained_net.state_dict(), 'simple_cnn.pth')
+
+
+trained_net = SimpleCNN()
+trained_net.load_state_dict(torch.load('simple_cnn.pth'))
+
+
+predict_output(trained_net, predict_loader)
+
