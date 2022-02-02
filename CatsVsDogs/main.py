@@ -16,10 +16,16 @@ from simple_cnn import SimpleCNN
 import logging 
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
-train_data_path = os.path.join(curr_dir, "Data", "train")
-validate_data_path = os.path.join(curr_dir, "Data", "validate")
-predict_data_path = os.path.join(curr_dir, "Data", "predict")
+# train_data_path = os.path.join(curr_dir, "Data", "train")
+# validate_data_path = os.path.join(curr_dir, "Data", "validate")
+# predict_data_path = os.path.join(curr_dir, "Data", "predict")
 
+
+train_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/learnML/CatsVsDogs/Data/Data/train"
+validate_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/learnML/CatsVsDogs/Data/validate"
+predict_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/learnML/CatsVsDogs/Data/test/test1"
+
+print ("initialized path")
 logging.basicConfig(filename="std.log", 
 					format='%(asctime)s %(message)s', 
 					filemode='w') 
@@ -41,13 +47,17 @@ data_transform = transforms.Compose([
 ])
 
 train_data = DogsCats(train_data_path, data_transform)
-train_loader = DataLoader(train_data, shuffle=True, batch_size=64)
+train_loader = DataLoader(train_data, shuffle=True, batch_size=32)
+print ("train dataloader")
 
 validate_data = DogsCats(validate_data_path, data_transform)
-validate_loader = DataLoader(validate_data, shuffle=True, batch_size=64)
+validate_loader = DataLoader(validate_data, shuffle=True, batch_size=32)
+print ("validate dataloader")
 
 predict_data = DogsCatsPredict(predict_data_path, data_transform)
-predict_loader = DataLoader(predict_data, shuffle=True, batch_size=64)
+predict_loader = DataLoader(predict_data, shuffle=True, batch_size=32)
+
+print ("initialised loaders")
 
 #ToDo: put the text outside the text, at bottom or somewhere.
 def plot_loss(y1_data, y2_data, x_data, xlabel, ylabel, title, plot_text):
@@ -76,6 +86,7 @@ def train_model(neural_net, train_loader, lr, momentum,
         # summary(neural_net, pixels.size())
         print (pixels.size())
         print (type(pixels))
+        print ("batch: " + str(batch))
 
         y_preds, _ = neural_net(pixels)
         loss = loss_fn(y_preds, labels)
@@ -98,11 +109,12 @@ def train_model(neural_net, train_loader, lr, momentum,
 def validate_model(neural_net, validate_loader, loss_fn):
     neural_net.eval()
     running_loss = 0
-    for _, (pixels, labels) in enumerate(validate_loader):
+    for batch, (pixels, labels) in enumerate(validate_loader):
         y_preds, _ = neural_net(pixels)
         loss = loss_fn(y_preds, labels)
         running_loss = running_loss + (loss.item() * labels.size(0))
-    
+        print ("validate batch: " + str(batch))
+
     epoch_loss = running_loss/len(validate_loader)
 
     return neural_net, epoch_loss
@@ -111,10 +123,11 @@ def validate_model(neural_net, validate_loader, loss_fn):
 def get_accuracy(neural_net, data_loader):
     correct_preds = 0
 
-    for _, (pixels, labels) in enumerate(data_loader):
+    for batch, (pixels, labels) in enumerate(data_loader):
         _, y_probs = neural_net(pixels)
         _, predicted_label = torch.max(y_probs, 1)
         correct_preds += (predicted_label == labels).sum()
+        print ("accuracy batch: " + str(batch))
     
     total_accuracy = correct_preds/(len(data_loader))
     return total_accuracy
@@ -132,6 +145,7 @@ def train_simple_cnn():
     training_loss = []
 
     for epoch in range(total_epochs):
+        print ("epoch: " + str(epoch))
         neural_net, train_epoch_loss = train_model(simple_cnn, train_loader, learning_rate, momentum, 
             sgd_optimiser, loss_fn)
         
@@ -164,6 +178,7 @@ def predict_output(neural_net, predict_loader):
     df.to_csv("output.csv",index=False)
 
 trained_net = train_simple_cnn()
+print ("defined the net, starting with training")
 torch.save(trained_net.state_dict(), 'simple_cnn.pth')
 predict_output(trained_net, predict_loader)
 
