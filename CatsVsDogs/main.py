@@ -43,7 +43,7 @@ data) and finding the maximum dimensions of an image."""
 
 data_transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Resize([768, 1050])
+    transforms.Resize([50, 50])
 ])
 
 train_data = DogsCats(train_data_path, data_transform)
@@ -83,7 +83,7 @@ def train_model(neural_net, train_loader, lr, momentum,
     running_loss = 0
 
     for batch, (pixels, labels) in enumerate(train_loader):
-        # summary(neural_net, pixels.size())
+        summary(neural_net, pixels.size())
         print (pixels.size())
         print (type(pixels))
         print ("batch: " + str(batch))
