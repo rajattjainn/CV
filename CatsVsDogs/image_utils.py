@@ -41,3 +41,33 @@ class DogsCats(Dataset):
     def __len__(self):
         assert len(self.pixel_data) == len(self.label_data)
         return len(self.pixel_data)
+
+
+class DogsCatsPredict(Dataset):
+    def __init__(self, folder_path, input_transform) -> None:
+        super().__init__()
+        self.folder_path = folder_path
+        self.transform = input_transform
+        self.pixel_data, self.filenames = self.read_input_data(folder_path)
+
+    def read_input_data(self, folder_path):
+        pixel_data = []
+        filenames = []
+
+        for filename in os.listdir(folder_path):
+
+            if filename.endswith("jpg"):
+                image = Image.open(os.path.join(folder_path, filename))
+                x_tensor = self.transform(image)
+
+                pixel_data.append(x_tensor)
+                filenames.append(os.path.splitext(filename)[0])
+
+        return pixel_data, filenames
+        
+    def __getitem__(self, idx):
+        return self.pixel_data[idx], self.filenames[idx]
+
+    def __len__(self):
+        assert len(self.pixel_data) == len(self.filenames)
+        return len(self.pixel_data)
