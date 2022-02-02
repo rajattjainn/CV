@@ -15,11 +15,10 @@ from simple_cnn import SimpleCNN
 
 import logging 
 
-
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 train_data_path = os.path.join(curr_dir, "Data", "train")
 validate_data_path = os.path.join(curr_dir, "Data", "validate")
-predict_data_path = os.path.join(curr_dir, "Data", "test")
+predict_data_path = os.path.join(curr_dir, "Data", "predict")
 
 logging.basicConfig(filename="std.log", 
 					format='%(asctime)s %(message)s', 
@@ -164,13 +163,10 @@ def predict_output(neural_net, predict_loader):
     df = pd.DataFrame(data)
     df.to_csv("output.csv",index=False)
 
-# trained_net = train_simple_cnn()
-# torch.save(trained_net.state_dict(), 'simple_cnn.pth')
-
-
-trained_net = SimpleCNN()
-trained_net.load_state_dict(torch.load('simple_cnn.pth'))
-
-
+trained_net = train_simple_cnn()
+torch.save(trained_net.state_dict(), 'simple_cnn.pth')
 predict_output(trained_net, predict_loader)
 
+
+
+#ToDo: check accuracy and other output variables for correctness. 
