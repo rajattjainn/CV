@@ -42,8 +42,8 @@ over all the input images (corresponding to both test and train
 data) and finding the maximum dimensions of an image."""
 
 data_transform = transforms.Compose([
+    transforms.Resize([50,50]),
     transforms.ToTensor(),
-    transforms.Resize([50, 50])
 ])
 
 train_data = DogsCats(train_data_path, data_transform)
