@@ -21,9 +21,9 @@ curr_dir = os.path.dirname(os.path.realpath(__file__))
 # predict_data_path = os.path.join(curr_dir, "Data", "predict")
 
 
-train_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/learnML/CatsVsDogs/Data/Data/train"
-validate_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/learnML/CatsVsDogs/Data/validate"
-predict_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/learnML/CatsVsDogs/Data/test/test1"
+train_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/train"
+validate_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/validate"
+predict_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/test1"
 
 print ("initialized path")
 logging.basicConfig(filename="std.log", 
