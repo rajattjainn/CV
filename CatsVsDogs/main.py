@@ -20,6 +20,7 @@ curr_dir = os.path.dirname(os.path.realpath(__file__))
 # validate_data_path = os.path.join(curr_dir, "Data", "validate")
 # predict_data_path = os.path.join(curr_dir, "Data", "predict")
 
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 train_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/train"
 validate_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/validate"
@@ -75,7 +76,7 @@ def plot_loss(y1_data, y2_data, x_data, xlabel, ylabel, title, plot_text):
     
 
 def train_model(neural_net, train_loader, lr, momentum, 
-            optimiser_type, loss_fn):
+            optimiser_type, loss_fn, DEVICE):
     
     optimiser = optimiser_type(neural_net.parameters(), 
                 lr=lr, momentum = momentum)
@@ -83,10 +84,9 @@ def train_model(neural_net, train_loader, lr, momentum,
     running_loss = 0
 
     for batch, (pixels, labels) in enumerate(train_loader):
-        summary(neural_net, pixels.size())
-        print (pixels.size())
-        print (type(pixels))
-        print ("batch: " + str(batch))
+        # summary(neural_net, pixels.size())
+        pixels.to(DEVICE)
+        labels.to(DEVICE)
 
         y_preds, _ = neural_net(pixels)
         loss = loss_fn(y_preds, labels)
@@ -95,7 +95,7 @@ def train_model(neural_net, train_loader, lr, momentum,
         optimiser.zero_grad()
         loss.backward()
         optimiser.step()
-        print (f"batch: {batch}, loss = {loss.item()}")
+        print (f"train batch: {batch}, loss = {loss.item()}")
         logger.debug("batch: " + str(batch) + ", loss = " + str(loss.item()))
         
     epoch_loss = running_loss/len(train_loader)
@@ -106,28 +106,33 @@ def train_model(neural_net, train_loader, lr, momentum,
     return neural_net, epoch_loss
 
 
-def validate_model(neural_net, validate_loader, loss_fn):
+def validate_model(neural_net, validate_loader, loss_fn, DEVICE):
     neural_net.eval()
     running_loss = 0
     for batch, (pixels, labels) in enumerate(validate_loader):
+        pixels.to(DEVICE)
+        labels.to(DEVICE)
         y_preds, _ = neural_net(pixels)
         loss = loss_fn(y_preds, labels)
         running_loss = running_loss + (loss.item() * labels.size(0))
-        print ("validate batch: " + str(batch))
+        print (f"validate batch: {batch}, loss = {loss.item()}")
 
     epoch_loss = running_loss/len(validate_loader)
 
     return neural_net, epoch_loss
 
 
-def get_accuracy(neural_net, data_loader):
+def get_accuracy(neural_net, data_loader, DEVICE):
     correct_preds = 0
 
     for batch, (pixels, labels) in enumerate(data_loader):
+        pixels.to(DEVICE)
+        labels.to(DEVICE)
         _, y_probs = neural_net(pixels)
         _, predicted_label = torch.max(y_probs, 1)
         correct_preds += (predicted_label == labels).sum()
         print ("accuracy batch: " + str(batch))
+        
     
     total_accuracy = correct_preds/(len(data_loader))
     return total_accuracy
@@ -147,12 +152,12 @@ def train_simple_cnn():
     for epoch in range(total_epochs):
         print ("epoch: " + str(epoch))
         neural_net, train_epoch_loss = train_model(simple_cnn, train_loader, learning_rate, momentum, 
-            sgd_optimiser, loss_fn)
+            sgd_optimiser, loss_fn, DEVICE)
         
         with torch.no_grad():
-            neural_net, validate_epoch_loss = validate_model(neural_net, validate_loader, loss_fn)
+            neural_net, validate_epoch_loss = validate_model(neural_net, validate_loader, loss_fn, DEVICE)
 
-        accuracy  = get_accuracy(neural_net, validate_loader)
+        accuracy  = get_accuracy(neural_net, validate_loader, DEVICE)
 
         print (f"Epoch: {epoch}, Train Loss: {train_epoch_loss}, Validate Loss: {validate_epoch_loss}, Training Accuracy: {accuracy}")
 
@@ -165,10 +170,11 @@ def train_simple_cnn():
     return neural_net
 
 
-def predict_output(neural_net, predict_loader):
+def predict_output(neural_net, predict_loader, DEVICE):
     data = {'id':[],
         'label':[]}
     for _, (x_pixels, filename) in enumerate(predict_loader):
+        x_pixels.to(DEVICE)
         _, pred_probs = neural_net(x_pixels)
         _, predicted_label = torch.max(pred_probs, 1)
         data["id"].extend(filename)
@@ -180,7 +186,7 @@ def predict_output(neural_net, predict_loader):
 trained_net = train_simple_cnn()
 print ("defined the net, starting with training")
 torch.save(trained_net.state_dict(), 'simple_cnn.pth')
-predict_output(trained_net, predict_loader)
+predict_output(trained_net, predict_loader, DEVICE)
 
 
 

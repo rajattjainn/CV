@@ -24,7 +24,7 @@ class SimpleCNN(nn.Module):
         )
 
     def forward(self,x):
-        print (x.size())
+        # print (x.size())
         x = self.feature_extractor(x)
         x = torch.flatten(x, 1)
 
