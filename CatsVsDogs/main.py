@@ -3,28 +3,28 @@ import datetime
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 
 from torchinfo import summary
 
-from image_utils import DogsCats, DogsCatsPredict
+from image_utils import DogsCats
 from simple_cnn import SimpleCNN
 
 import logging 
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
-# train_data_path = os.path.join(curr_dir, "Data", "train")
-# validate_data_path = os.path.join(curr_dir, "Data", "validate")
-# predict_data_path = os.path.join(curr_dir, "Data", "predict")
+train_data_path = os.path.join(curr_dir, "Data", "demo_train")
+validate_data_path = os.path.join(curr_dir, "Data", "demo_validate")
+predict_data_path = os.path.join(curr_dir, "Data", "demo_predict")
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-train_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/train"
-validate_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/validate"
-predict_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/test1"
+# train_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/train"
+# validate_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/validate"
+# predict_data_path = "/home/azureuser/cloudfiles/code/Users/addresseerajat/code/learnML/CatsVsDogs/Data/test1"
 
 print ("initialized path")
 logging.basicConfig(filename="std.log", 
@@ -47,17 +47,29 @@ data_transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
-train_data = DogsCats(train_data_path, data_transform)
+train_files = os.listdir(train_data_path)
+dog_train_files = [tf for tf in train_files if tf.startswith('dog')]
+cat_train_files = [tf for tf in train_files if tf.startswith('cat')]
+dog_train_data =  DogsCats(data_transform, train_data_path, dog_train_files, 1)
+cat_train_data =  DogsCats(data_transform, train_data_path, cat_train_files, 0)
+train_data = ConcatDataset([dog_train_data, cat_train_data])
 train_loader = DataLoader(train_data, shuffle=True, batch_size=32)
 print ("train dataloader")
 
-validate_data = DogsCats(validate_data_path, data_transform)
+
+validate_files = os.listdir(validate_data_path)
+dog_valid_files = [tf for tf in validate_files if tf.startswith('dog')]
+cat_valid_files = [tf for tf in validate_files if tf.startswith('cat')]
+dog_validate_data =  DogsCats(data_transform, validate_data_path, dog_valid_files, 1)
+cat_validate_data =  DogsCats(data_transform, validate_data_path, cat_valid_files, 0)
+validate_data = ConcatDataset([dog_validate_data, cat_validate_data])
 validate_loader = DataLoader(validate_data, shuffle=True, batch_size=32)
 print ("validate dataloader")
 
-predict_data = DogsCatsPredict(predict_data_path, data_transform)
+predict_files = os.listdir(predict_data_path)
+predict_files = [tf for tf in predict_files if tf.endswith("jpg")]
+predict_data =  DogsCats(data_transform, predict_data_path, predict_files, None)
 predict_loader = DataLoader(predict_data, shuffle=True, batch_size=32)
-
 print ("initialised loaders")
 
 #ToDo: put the text outside the text, at bottom or somewhere.
