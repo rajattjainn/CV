@@ -2,7 +2,10 @@ import os
 
 import torchvision.models as models
 import torchvision.transforms as transforms
+import torchvision.utils as utils
 import torch as torch
+import torch.nn as nn
+
 from torchinfo import summary
 
 from PIL import Image
@@ -35,5 +38,21 @@ OUTPUT_TENSOR = torch.randn([3,100,100])
 print (OUTPUT_TENSOR.size())
 
 
-summary(vgg19)
+# summary(vgg19)
+print ("not printing vgg16 ")
 
+NUM_ITERATIONS = 1000
+MSE_LOSS = nn.functional.mse_loss
+LEARNING_RATE = 1e-3
+truncated_model = nn.Sequential(*list(vgg19.features)[:35])
+summary(truncated_model)
+print ("hola")
+for iteration in range(NUM_ITERATIONS):
+    content_features = truncated_model(CONTENT_TENSOR[None])
+    output_features = truncated_model(OUTPUT_TENSOR[None])
+    print ("iter : " + str(iteration) + "\n")
+
+    OUTPUT_TENSOR = OUTPUT_TENSOR - LEARNING_RATE*MSE_LOSS(
+        content_features, output_features)
+
+utils.save_image(OUTPUT_TENSOR, os.path.join(CURR_DIR, "äbc.png"), format = "PNG")
