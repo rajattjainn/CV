@@ -1,5 +1,7 @@
-from fileinput import filename
 import os
+import numpy
+
+import torch
 import torchvision.utils as utils
 import torchvision.transforms as transforms
 
@@ -24,4 +26,9 @@ def convert_image_to_tensor(dir_path, file_name):
     input_image = Image.open(os.path.join(dir_path, file_name))
     input_tensor = get_input_image_transform()(input_image)
     return input_tensor
+
+def generate_random_image(image_pixel):
+    imarray = numpy.random(image_pixel,image_pixel,3) * 255
+    # im = Image.fromarray(imarray.astype('uint8'))
+    return torch.tensor(imarray)
 
