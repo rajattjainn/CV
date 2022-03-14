@@ -1,5 +1,5 @@
 
-
+import torch.nn as nn
 
 def parse_cfg(cfgfile):
     net_cfg = open(cfgfile, "rt")
@@ -28,11 +28,53 @@ def parse_cfg(cfgfile):
     return blocks
             
 
+def create_sequential_objects(block_list):
+    prev_filters = 3
+    module_list = []
+
+    for i, block in enumerate(block_list[1:]):
+        module = nn.Sequential()
+
+        block_type = block["type"]
+        if block_type == "convolutional":
+
+            if "batch_normalize" in (list(block.keys())):
+                batch_normalize = block["batch_normalize"]
+                bias = False
+            else:
+                batch_normalize = 0
+                bias = True
+            
+            filters = int(block["filters"])
+            kernel_size = int(block["size"])
+            stride = int(block["stride"])
+            pad = int(block["pad"])
+            if pad:
+                pad = kernel_size //2 # as explained by the author of cfg file at (https://github.com/AlexeyAB/darknet/wiki/CFG-Parameters-in-the-different-layers)
+            conv_block = nn.Conv2d(prev_filters, filters, kernel_size, stride = stride, padding = pad, bias = bias)
+            module.add_module("conv_{0}".format(i), conv_block)
+            prev_filters = filters
+
+            if batch_normalize:
+                normalize_block = nn.BatchNorm2d(filters)
+                module.add_module("batch_{0}".format(i), normalize_block)
+
+            #ToDo: check this section once
+            activation = block["activation"]
+            if activation == "leaky":
+                activaiton_block = nn.LeakyReLU()
+                module.add_module("leakyrelu_{0}".format(i), activaiton_block)                
+            elif activation == "linear":
+                activaiton_block = nn.Linear(prev_filters, prev_filters)
+                module.add_module("linear_{0}".format(i), activaiton_block)
+
+            module_list.append(module)
+
+    return module_list
+
+            
+
 
 blocks = parse_cfg("cfg/yolov3.cfg")
-
-for block in blocks:
-    print (block)
-    print ("\n\n")
-
-# print (parse_cfg("cfg/yolov3.cfg"))
+module_list = create_sequential_objects(blocks)
+print (module_list)
