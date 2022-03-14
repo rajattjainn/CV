@@ -29,7 +29,9 @@ def parse_cfg(cfgfile):
             
 
 def create_sequential_objects(block_list):
-    prev_filters = 3
+    prev_filter = 3
+    filter_list = []
+    filter_list.append(prev_filter)
     module_list = []
 
     for i, block in enumerate(block_list[1:]):
@@ -51,9 +53,10 @@ def create_sequential_objects(block_list):
             pad = int(block["pad"])
             if pad:
                 pad = kernel_size //2 # as explained by the author of cfg file at (https://github.com/AlexeyAB/darknet/wiki/CFG-Parameters-in-the-different-layers)
-            conv_block = nn.Conv2d(prev_filters, filters, kernel_size, stride = stride, padding = pad, bias = bias)
+            conv_block = nn.Conv2d(prev_filter, filters, kernel_size, stride = stride, padding = pad, bias = bias)
             module.add_module("conv_{0}".format(i), conv_block)
-            prev_filters = filters
+            prev_filter = filters
+            filter_list.append(prev_filter)
 
             if batch_normalize:
                 normalize_block = nn.BatchNorm2d(filters)
@@ -65,8 +68,18 @@ def create_sequential_objects(block_list):
                 activaiton_block = nn.LeakyReLU()
                 module.add_module("leakyrelu_{0}".format(i), activaiton_block)                
             elif activation == "linear":
-                activaiton_block = nn.Linear(prev_filters, prev_filters)
+                activaiton_block = nn.Linear(prev_filter, prev_filter)
                 module.add_module("linear_{0}".format(i), activaiton_block)
+
+            module_list.append(module)
+
+        elif block_type == "shortcut":
+            activation = block["activation"]
+
+            if activation == "linear":
+                activaiton_block = nn.Linear(prev_filter, prev_filter)
+                module.add_module("linear_{0}".format(i), activaiton_block)
+                filter_list.append(prev_filter)
 
             module_list.append(module)
 
@@ -77,4 +90,8 @@ def create_sequential_objects(block_list):
 
 blocks = parse_cfg("cfg/yolov3.cfg")
 module_list = create_sequential_objects(blocks)
-print (module_list)
+print ("---------checking starts----------")
+for i, module in enumerate(module_list):
+    print ("Index: " + str(i))
+    print (module)
+    print ("\n")
