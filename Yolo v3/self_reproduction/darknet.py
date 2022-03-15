@@ -17,16 +17,18 @@ def parse_cfg(cfgfile):
             if len(block) > 0:
                 blocks.append(block)
                 block = {}
-            section = line[1:-1]
-            block["type"] = section.lstrip().rstrip()
-        
+            type = line[1:-1]
+            block["type"] = type.lstrip().rstrip()
         else:
             key, value = line.split("=")
             block[key.rstrip().lstrip()] = value.lstrip().rstrip()
-        
     blocks.append(block)
     return blocks
             
+class EmptyLayer(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
 
 def create_sequential_objects(block_list):
     prev_filter = 3
@@ -73,22 +75,35 @@ def create_sequential_objects(block_list):
 
             module_list.append(module)
 
-        elif block_type == "shortcut":
-            activation = block["activation"]
-
-            if activation == "linear":
-                activaiton_block = nn.Linear(prev_filter, prev_filter)
-                module.add_module("linear_{0}".format(i), activaiton_block)
-                filter_list.append(prev_filter)
+        elif block_type == "upsample":
+            stride = int(block["stride"])
+            upsample_block = nn.Upsample(scale_factor = stride)
+            module.add_module("upsample_{0}".format(i), upsample_block)
 
             module_list.append(module)
 
+        elif block_type == "shortcut" or block_type == "route":
+            empty_block = EmptyLayer()
+            module.add_module(empty_block)
+        
+
+
+
+            # activation = block["activation"]
+
+            # if activation == "linear":
+            #     activaiton_block = nn.Linear(prev_filter, prev_filter)
+            #     module.add_module("linear_{0}".format(i), activaiton_block)
+            #     filter_list.append(prev_filter)
+
+            # module_list.append(module)
+
     return module_list
 
-            
 
 
 blocks = parse_cfg("cfg/yolov3.cfg")
+
 module_list = create_sequential_objects(blocks)
 print ("---------checking starts----------")
 for i, module in enumerate(module_list):
