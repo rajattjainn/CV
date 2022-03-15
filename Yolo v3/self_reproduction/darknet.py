@@ -29,6 +29,10 @@ class EmptyLayer(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
+class DetectionLayer(nn.Module):
+    def __init__(self, anchors) -> None:
+        super().__init__()
+        self.anchors = anchors
 
 def create_sequential_objects(block_list):
     prev_filter = 3
@@ -84,10 +88,18 @@ def create_sequential_objects(block_list):
 
         elif block_type == "shortcut" or block_type == "route":
             empty_block = EmptyLayer()
-            module.add_module(empty_block)
+            module.add_module(block_type + "_{0}".format(i), empty_block)
+            module_list.append(module)
         
-
-
+        elif block_type == 'yolo':
+            mask = [int(x) for x in block["mask"].split(",")]
+            anchor_iter = iter([int (x) for x in block["anchors"].split(",")])
+            anchor_tuples = [*zip(anchor_iter, anchor_iter)]
+            anchors = [anchor_tuples[x] for x in mask]
+            
+            detection_block = DetectionLayer(anchors)
+            module.add_module("yolo_{0}".format(i), detection_block)
+            module_list.append(module)
 
             # activation = block["activation"]
 
@@ -110,3 +122,5 @@ for i, module in enumerate(module_list):
     print ("Index: " + str(i))
     print (module)
     print ("\n")
+
+
