@@ -1,5 +1,6 @@
 
 import torch.nn as nn
+import torch as torch
 
 def parse_cfg(cfgfile):
     net_cfg = open(cfgfile, "rt")
@@ -101,15 +102,6 @@ def create_sequential_objects(block_list):
             module.add_module("yolo_{0}".format(i), detection_block)
             module_list.append(module)
 
-            # activation = block["activation"]
-
-            # if activation == "linear":
-            #     activaiton_block = nn.Linear(prev_filter, prev_filter)
-            #     module.add_module("linear_{0}".format(i), activaiton_block)
-            #     filter_list.append(prev_filter)
-
-            # module_list.append(module)
-
     return module_list
 
 
@@ -122,5 +114,45 @@ for i, module in enumerate(module_list):
     print ("Index: " + str(i))
     print (module)
     print ("\n")
+
+
+
+
+class Darknet(nn.Module):
+    def __init__(self, cfgfile) -> None:
+        super().__init__()
+        self.block_list = parse_cfg(cfgfile)
+        self.module_list = create_sequential_objects(self.block_list)
+
+    def forward(self, input_data):
+        output_ftr_map_list = []
+        prev_output = input_data
+        for index, block in enumerate(self.block_list[1:]):
+            block_type = block["type"]
+            
+            if block_type == "convolutional" or block_type == "upsample":
+                output = module_list[i](prev_output)
+                
+            elif block_type == "shortcut":
+                relative_index = block["from"]
+                absolute_index = index + relative_index
+                output = output_ftr_map_list[index - 1] + output_ftr_map_list[absolute_index]
+
+            elif block_type == 'route':
+                layers = block["layers"]
+                
+                if "," in layers:
+                    layers = layers.split(",")
+                
+                if len(layers) == 0:
+                    output = output_ftr_map_list[index + int(layers)]
+                else:
+                    output = torch.cat((output_ftr_map_list[index + int(layers[0]), output_ftr_map_list[int(layers[1])]]), 1)
+                
+
+            output_ftr_map_list.append(output)
+            prev_output = output
+
+
 
 
