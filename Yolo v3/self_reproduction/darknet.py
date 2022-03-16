@@ -3,6 +3,18 @@ import torch.nn as nn
 import torch as torch
 
 def parse_cfg(cfgfile):
+    """
+    Reads the configuration file that contains the architecture of the algorithm.
+
+    Creates a dictionary object for each block with various attributes working as the key(s).
+    It should be noted that a block is not equal to a single layer like convolutional or linear.
+    For example a convolutional block can have normalize, convolutional and linear layers. 
+
+    Adds each dictionary object to a list and returns that list.
+
+    @param cfgfile: the configuration file
+    @return: a list of dictionaries, each dictionary depicting a neural (sequential) block.
+    """
     net_cfg = open(cfgfile, "rt")
     cfg_lines = list(net_cfg)
     cfg_lines = [line.strip() for line in cfg_lines]
@@ -105,19 +117,6 @@ def create_sequential_objects(block_list):
     return module_list
 
 
-
-blocks = parse_cfg("cfg/yolov3.cfg")
-
-module_list = create_sequential_objects(blocks)
-print ("---------checking starts----------")
-for i, module in enumerate(module_list):
-    print ("Index: " + str(i))
-    print (module)
-    print ("\n")
-
-
-
-
 class Darknet(nn.Module):
     def __init__(self, cfgfile) -> None:
         super().__init__()
@@ -156,3 +155,15 @@ class Darknet(nn.Module):
 
 
 
+
+
+
+
+blocks = parse_cfg("cfg/yolov3.cfg")
+
+module_list = create_sequential_objects(blocks)
+print ("---------checking starts----------")
+for i, module in enumerate(module_list):
+    print ("Index: " + str(i))
+    print (module)
+    print ("\n")
