@@ -24,7 +24,7 @@ def parse_cfg(cfgfile):
 
     for line in cfg_lines:
         
-        if line.startswith("#"):
+        if line.startswith("#"): #comments in the cfg file
             continue
         elif line.startswith("["):
             if len(block) > 0:
@@ -47,7 +47,12 @@ class DetectionLayer(nn.Module):
         super().__init__()
         self.anchors = anchors
 
-def create_sequential_objects(block_list):
+def create_modules(block_list):
+    """ 
+    Create building blocks of the neural network. 
+    @param block_list: a list of dictionaries, each dictionary depicting a neural (sequential) block.
+    @output module_list: list of modules, each module an object of nn.Sequential class.
+    """
     prev_filter = 3
     filter_list = []
     filter_list.append(prev_filter)
@@ -58,10 +63,10 @@ def create_sequential_objects(block_list):
 
         block_type = block["type"]
         if block_type == "convolutional":
-
+            
             if "batch_normalize" in (list(block.keys())):
                 batch_normalize = block["batch_normalize"]
-                bias = False
+                bias = False # Batchnormalization already includes the addition of the bias term. Refer https://stackoverflow.com/a/46256860/1937725
             else:
                 batch_normalize = 0
                 bias = True
@@ -100,12 +105,17 @@ def create_sequential_objects(block_list):
             module_list.append(module)
 
         elif block_type == "shortcut" or block_type == "route":
+            # An alternative to EmptyLayer is to add nothing and handle this condition in the forward pass
+            # by applying concatenation. However, EmptyLayer is required to make sure the length of 
+            # block_list and module_list is same and the indexing is ordered. This ordering helps in
+            #  the forward function of Darknet neural network. 
             empty_block = EmptyLayer()
-            module.add_module(block_type + "_{0}".format(i), empty_block)
             module_list.append(module)
+            module.add_module(block_type + "_{0}".format(i), empty_block)
         
         elif block_type == 'yolo':
-            mask = [int(x) for x in block["mask"].split(",")]
+            # mask tells which anchor boxes to use. Yolo detects unage at 3 levels, each level has 3 anchor boxes.
+            mask = [int(x) for x in block["mask"].split(",")] 
             anchor_iter = iter([int (x) for x in block["anchors"].split(",")])
             anchor_tuples = [*zip(anchor_iter, anchor_iter)]
             anchors = [anchor_tuples[x] for x in mask]
@@ -121,7 +131,7 @@ class Darknet(nn.Module):
     def __init__(self, cfgfile) -> None:
         super().__init__()
         self.block_list = parse_cfg(cfgfile)
-        self.module_list = create_sequential_objects(self.block_list)
+        self.module_list = create_modules(self.block_list)
 
     def forward(self, input_data):
         output_ftr_map_list = []
@@ -161,7 +171,7 @@ class Darknet(nn.Module):
 
 blocks = parse_cfg("cfg/yolov3.cfg")
 
-module_list = create_sequential_objects(blocks)
+module_list = create_modules(blocks)
 print ("---------checking starts----------")
 for i, module in enumerate(module_list):
     print ("Index: " + str(i))
