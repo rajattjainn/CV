@@ -1,6 +1,19 @@
 
+import numpy as np
 import torch.nn as nn
 import torch as torch
+import cv2
+
+import utils
+
+class EmptyLayer(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+class DetectionLayer(nn.Module):
+    def __init__(self, anchors) -> None:
+        super().__init__()
+        self.anchors = anchors
 
 def parse_cfg(cfgfile):
     """
@@ -36,16 +49,8 @@ def parse_cfg(cfgfile):
             key, value = line.split("=")
             block[key.rstrip().lstrip()] = value.lstrip().rstrip()
     blocks.append(block)
-    return blocks
-            
-class EmptyLayer(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
 
-class DetectionLayer(nn.Module):
-    def __init__(self, anchors) -> None:
-        super().__init__()
-        self.anchors = anchors
+    return blocks
 
 def create_modules(block_list):
     """ 
@@ -58,7 +63,7 @@ def create_modules(block_list):
     filter_list.append(prev_filter)
     module_list = []
 
-    for i, block in enumerate(block_list[1:]):
+    for index, block in enumerate(block_list[1:]):
         module = nn.Sequential()
 
         block_type = block["type"]
@@ -78,29 +83,32 @@ def create_modules(block_list):
             if pad:
                 pad = kernel_size //2 # as explained by the author of cfg file at (https://github.com/AlexeyAB/darknet/wiki/CFG-Parameters-in-the-different-layers)
             conv_block = nn.Conv2d(prev_filter, filters, kernel_size, stride = stride, padding = pad, bias = bias)
-            module.add_module("conv_{0}".format(i), conv_block)
+            module.add_module("conv_{0}".format(index), conv_block)
             prev_filter = filters
             filter_list.append(prev_filter)
 
             if batch_normalize:
                 normalize_block = nn.BatchNorm2d(filters)
-                module.add_module("batch_{0}".format(i), normalize_block)
+                module.add_module("batch_{0}".format(index), normalize_block)
 
             #ToDo: check this section once
             activation = block["activation"]
             if activation == "leaky":
                 activaiton_block = nn.LeakyReLU()
-                module.add_module("leakyrelu_{0}".format(i), activaiton_block)                
-            elif activation == "linear":
-                activaiton_block = nn.Linear(prev_filter, prev_filter)
-                module.add_module("linear_{0}".format(i), activaiton_block)
+                module.add_module("leakyrelu_{0}".format(index), activaiton_block)
+            # adding this layer raises an exception. multiple implementations of yolov3 haven't implemented 
+            # linear activation in convolutional layer. Researching in parallel why this hasn't been done.
+
+            # elif activation == "linear":
+            #     activaiton_block = nn.Linear(prev_filter, prev_filter)
+            #     module.add_module("linear_{0}".format(index), activaiton_block)
 
             module_list.append(module)
 
         elif block_type == "upsample":
             stride = int(block["stride"])
             upsample_block = nn.Upsample(scale_factor = stride)
-            module.add_module("upsample_{0}".format(i), upsample_block)
+            module.add_module("upsample_{0}".format(index), upsample_block)
 
             module_list.append(module)
 
@@ -111,7 +119,7 @@ def create_modules(block_list):
             #  the forward function of Darknet neural network. 
             empty_block = EmptyLayer()
             module_list.append(module)
-            module.add_module(block_type + "_{0}".format(i), empty_block)
+            module.add_module(block_type + "_{0}".format(index), empty_block)
         
         elif block_type == 'yolo':
             # mask tells which anchor boxes to use. Yolo detects unage at 3 levels, each level has 3 anchor boxes.
@@ -121,7 +129,7 @@ def create_modules(block_list):
             anchors = [anchor_tuples[x] for x in mask]
             
             detection_block = DetectionLayer(anchors)
-            module.add_module("yolo_{0}".format(i), detection_block)
+            module.add_module("yolo_{0}".format(index), detection_block)
             module_list.append(module)
 
     return module_list
