@@ -134,7 +134,6 @@ def create_modules(block_list):
 
     return module_list
 
-
 class Darknet(nn.Module):
     def __init__(self, cfgfile) -> None:
         super().__init__()
@@ -142,46 +141,106 @@ class Darknet(nn.Module):
         self.module_list = create_modules(self.block_list)
 
     def forward(self, input_data):
+        net_info = self.block_list[0]
         output_ftr_map_list = []
+        # setting prev_output equal to input_data for 0th index.
         prev_output = input_data
-        for index, block in enumerate(self.block_list[1:]):
-            block_type = block["type"]
+        print ("modue list length")
+        print (len(self.module_list[1:]))
+        print ("\n\n module list -------------")
+        print (self.module_list)
+
+        write = 0
+        for index, block in enumerate(self.module_list[1:]):
+            #ToDo: find a cleaner way to do this action
+            print ("\n\nindex: " + str(index))
+                        
+            block_type = self.block_list[index + 1]["type"]
             
             if block_type == "convolutional" or block_type == "upsample":
-                output = module_list[i](prev_output)
-                
+                print (block_type)
+                print ("prev output size:" )
+                print (prev_output.size())
+                print (self.module_list[index])
+                output = self.module_list[index](prev_output)
+                print ("output size:")
+                print (output.size())
             elif block_type == "shortcut":
-                relative_index = block["from"]
+                relative_index = int(self.block_list[index + 1]["from"])
                 absolute_index = index + relative_index
-                output = output_ftr_map_list[index - 1] + output_ftr_map_list[absolute_index]
-
-            elif block_type == 'route':
-                layers = block["layers"]
+                output = output_ftr_map_list[absolute_index]
+                # print ("\n\nshortcut")
+                # print ("relative_index: " + str(relative_index))
+                # print ("absolute_index: " + str(absolute_index))
                 
-                if "," in layers:
-                    layers = layers.split(",")
+            elif block_type == "route":
+                layers = self.block_list[index + 1]["layers"]
+                # print ("\n\nroute")
+                print ("layers")
+                print (layers)
+                print ("\n\n")
                 
-                if len(layers) == 0:
-                    output = output_ftr_map_list[index + int(layers)]
+                if "," in layers:    
+                    layers = [int(x) for x in layers.split(",")]
+                    output_1 = output_ftr_map_list[index + int(layers[0])]
+                    output_2 = output_ftr_map_list[int(layers[1])]
+                    # print ("2 layers, absolute indexes: " + str(index + layers[0]) + ", " + str(layers[1]))    
+                    output = torch.cat((output_1, output_2), 1)
+                    # print ("output tensor: ")
+                    # print (output)
+                    # print (output.size())
                 else:
-                    output = torch.cat((output_ftr_map_list[index + int(layers[0]), output_ftr_map_list[int(layers[1])]]), 1)
-                
+                    # print ("single layer, absolute index: " + str(index + layers[0]))    
+                    output = output_ftr_map_list[index + int(layers)]
+                    # print ("output tensor: ")
+                    # print (output)
+                    # print (output.size())
+            
+            elif block_type == "yolo":
+                print ("\n\nyolo")
+                mask = [int(x) for x in self.block_list[index + 1]["mask"].split(",")]
+                anchors = iter([int(x) for x in self.block_list[index + 1]["anchors"].split(",")])
+                anchors = [*zip(anchors, anchors)]
+                anchors = [anchors[index] for index in mask]
+                num_classes = int(self.block_list[index + 1]["classes"])
+                height = int(net_info["height"])
+                print ("going in transform")
+                output = utils.transform_prediction(prev_output, anchors, num_classes, height)
 
-            output_ftr_map_list.append(output)
+
+                if write:
+                    detection_tensor = torch.cat((detection_tensor, output), 1)
+                else:
+                    detection_tensor = output
+                    write = 1
+            
             prev_output = output
+            output_ftr_map_list.append(output)
+
+        print ("\n\nending for loop. size of return tensor: ")
+        print (detection_tensor.size())
+        return detection_tensor    
 
 
+def get_test_input(input_image):
+    img = cv2.imread(input_image)
+    img = cv2.resize(img, (416,416))          #Resize to the input dimension
+    img_ =  img[:,:,::-1].transpose((2,0,1))  # BGR -> RGB | H X W C -> C X H X W 
+    img_ = img_[np.newaxis,:,:,:]/255.0       #Add a channel at 0 (for batch) | Normalise
+    img_ = torch.from_numpy(img_).float()     #Convert to float
+    img_ = torch.Tensor(img_)                     # Convert to Variable
+    return img_
 
 
+# blocks = parse_cfg("cfg/yolov3.cfg")
+
+# module_list = create_modules(blocks)
+# print ("---------checking starts----------")
+# for i, module in enumerate(module_list):
+#     print ("Index: " + str(i))
+#     print (module)
+#     print ("\n")
 
 
-
-
-blocks = parse_cfg("cfg/yolov3.cfg")
-
-module_list = create_modules(blocks)
-print ("---------checking starts----------")
-for i, module in enumerate(module_list):
-    print ("Index: " + str(i))
-    print (module)
-    print ("\n")
+net = Darknet("cfg/yolov3.cfg")
+net(get_test_input("imgs/dog.jpg"))
