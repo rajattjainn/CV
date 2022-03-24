@@ -54,9 +54,6 @@ def transform_prediction(predictions, anchors, num_classes, input_height):
     x_y_offset = x_y_offset.repeat(1, num_anchors)
     x_y_offset = x_y_offset.view(-1, 2).unsqueeze(0)
 
-    print ("\n\npredictions and x_y_offset")
-    print (predictions.size())
-    print (x_y_offset.size())
     predictions[:, :, 0:2] += x_y_offset
 
     # performing operations on the tw and th values.
@@ -70,11 +67,7 @@ def transform_prediction(predictions, anchors, num_classes, input_height):
     anchor_tensor = torch.Tensor(anchors)
     anchor_tensor = anchor_tensor.repeat(out_grid_size *out_grid_size, 1).unsqueeze(0)
     predictions[:, :, 2:4] = (torch.exp(predictions[:, :, 2:4])) * anchor_tensor
-    print ("\n\nprediction size after mul")
-    print (predictions.size())
-
+    
     predictions[:, :, 0:4] = predictions[:, :, 0:4] * stride
-    print ("/n/nafter stride mul")
-    print (predictions.size())
-
+    
     return predictions
