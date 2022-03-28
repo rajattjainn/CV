@@ -25,7 +25,7 @@ Apart from concatenation (if required), no other operation is carried out in the
 The output layer in Yolo v3 is a 1x1 convolutional layer, which means the output is a feature map.
 
 ## Config File
-The network described above is captured in a configuration file saved in [assets](/assets/) folder. This is the same [configuration file](https://github.com/pjreddie/darknet/blob/master/cfg/yolov3.cfg) as used by Joseph Redmon (the co-author of Yolo v3 research paper) in his implementation of the network. In our implementation, we use this file to create the network.
+The network described above is captured in a configuration file saved in [assets](assets/) folder. This is the same [configuration file](https://github.com/pjreddie/darknet/blob/master/cfg/yolov3.cfg) as used by Joseph Redmon (the co-author of Yolo v3 research paper) in his implementation of the network. In our implementation, we use this file to create the network.
 
 ## Output
 
