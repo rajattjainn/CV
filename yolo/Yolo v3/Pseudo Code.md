@@ -1,8 +1,8 @@
 Yolo Implementation:
 
-- Read and parse the config file
+- Read and parse the config file: "parse_cfg" function in neural_net.py
 - create a "global_detections" tensor
-- Create a network from it
+- Create a network from it the parsed cfg file
     - net layer
     - conv layer
     - shortcut layer
@@ -43,3 +43,6 @@ Yolo Implementation:
 - load the weights (follow Akshay Kathooriya's blog)
 - read an image and pass through it to get the results
 - write a function to draw bounding boxes and name of the class
+
+- Write a shell script to download weights file
+- Automate conda env creation
