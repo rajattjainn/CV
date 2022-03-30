@@ -76,6 +76,10 @@ def create_module_list(layer_dic_list):
             upsample_module = nn.Upsample(scale_factor = stride, mode="bilinear")
             module_list.add_module("upsample_{0}".format(index, upsample_module))
 
+        if layer[LAYER_TYPE] == "route":
+            route_module = EmptyLayer()
+            module_list.add_module("route_{0}".format(index), route_module)
+
         if layer[LAYER_TYPE] == "yolo":
             yolo_module = EmptyLayer()
             module_list.add_module("yolo_{0}".format(index), yolo_module)
