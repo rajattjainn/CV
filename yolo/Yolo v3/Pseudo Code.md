@@ -1,6 +1,7 @@
 Yolo Implementation:
 
-- Read and parse the config file: "parse_cfg" function in neural_net.py
+- Read and parse the config file: **parse_cfg**" function in **neural_net.py**
+- Create a list (**module_list**) of all the layers found in parse_config file. For each layer, we'll have one item in the list. : **create_module_list** function in **neural_net.py**
 - create a "global_detections" tensor
 - Create a network from it the parsed cfg file
     - net layer

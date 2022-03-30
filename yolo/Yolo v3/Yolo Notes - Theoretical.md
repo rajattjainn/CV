@@ -75,7 +75,7 @@ The final calculations are given as:
 1. Second bullet point in Route layer
 2. Hyperlink in upsamling layer
 3. Explain parameters of layers in the config file
-
+4. Talk about nn.ModuleList() - why it is being used instead of list. (neural_net, create_module_list method)
 
 
 
