@@ -115,7 +115,7 @@ def get_mesh_grid(grid_size):
 
     return x_cord_tensor, y_cord_tensor
 
-def transform_yolo_output(input, anchors):
+def transform_yolo_output(input, anchors, cnf_thres):
     batch_size = input.size(0)
     grid_size = input[0].size(1)
 
@@ -150,7 +150,14 @@ def transform_yolo_output(input, anchors):
         img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
         img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
 
+        img = img[img[:, 4] > cnf_thres]
+
+        max_values = torch.max(img[:,5:], 1)
+        img = torch.cat((img[:, :5], max_values[0].unsqueeze(1), max_values[1].unsqueeze(1)), 1)
+
         print (img.size())
+
+
 class Yolo3(nn.Module):
     def __init__(self, cfg_file):
         super().__init__()
@@ -210,7 +217,7 @@ class Yolo3(nn.Module):
                     anchors.append(anc_list[int(mask[item])])
 
                 #rewrite till here
-                output = transform_yolo_output(input, anchors)
+                output = transform_yolo_output(input, anchors, cnf_thres = 0.5)
                 
                 break
 
@@ -222,5 +229,3 @@ class Yolo3(nn.Module):
 input = torch.randn(1, 3, 416, 416)
 net = Yolo3("assets/config.cfg")
 net(input)
-
-
