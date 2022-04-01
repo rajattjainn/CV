@@ -1,6 +1,7 @@
 from sysconfig import parse_config_h
 import torch
 from torch import nn as nn
+import numpy as np
 
 LAYER_TYPE = "layer_type"
 
@@ -53,7 +54,6 @@ def create_module_list(layer_dic_list):
             activation = layer["activation"]
 
             #using the value of padding as defined: https://github.com/AlexeyAB/darknet/wiki/CFG-Parameters-in-the-different-layers
-            
             if pad:
                 padding = kernel // 2
             else:
@@ -101,7 +101,56 @@ def create_module_list(layer_dic_list):
     
     return net_info, module_list
 
+def get_mesh_grid(grid_size):
+    #Rewrite this part
+    x_range = np.arange(0, grid_size)
+    y_range = np.arange(0, grid_size)
+    x,y = np.meshgrid(x_range, y_range)
+    x = x.repeat(3,1)
+    y = y.repeat(3,1)
+    x_cord_tensor = torch.tensor(x)
+    y_cord_tensor = torch.tensor(y)
+    x_cord_tensor = x_cord_tensor.view(-1,1)
+    y_cord_tensor = y_cord_tensor.view(-1,1)
 
+    return x_cord_tensor, y_cord_tensor
+
+def transform_yolo_output(input, anchors):
+    batch_size = input.size(0)
+    grid_size = input[0].size(1)
+
+    #rewrite
+    anc_tensor_exists = False
+    for item in anchors:
+        if anc_tensor_exists:
+            anc_tensor = torch.cat((anc_tensor, torch.tensor(item)),0)
+        else:
+            anc_tensor = torch.tensor(item)
+            anc_tensor_exists = True
+            
+    anc_tensor = anc_tensor.view(-1, 2).repeat(grid_size*grid_size,1)
+
+
+    for i in range(batch_size):
+        img = input[i]
+        
+        img = img.transpose(0,2).contiguous()
+        img = img.view(grid_size * grid_size, -1)
+        img = img.view(grid_size * grid_size * 3, -1)
+
+        img[:, 0] = torch.sigmoid(img[:, 0])
+        img[:, 1] = torch.sigmoid(img[:, 1])
+        img[:, 4] = torch.sigmoid(img[:, 4])
+        
+        x_cord_tensor, y_cord_tensor = get_mesh_grid(grid_size)
+
+        img[:, 0] = img[:, 0] + x_cord_tensor.squeeze(1)
+        img[:, 1] = img[:, 1] + y_cord_tensor.squeeze(1)
+        
+        img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
+        img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
+
+        print (img.size())
 class Yolo3(nn.Module):
     def __init__(self, cfg_file):
         super().__init__()
@@ -115,28 +164,15 @@ class Yolo3(nn.Module):
 
         for index, layer_dic in enumerate(layer_dic_list):
             if layer_dic[LAYER_TYPE] == "convolutional":
-                stride = int(layer_dic["stride"])
                 output = module_list[index](input)
-                print (index)
-                print (stride)
-                print (output.size())
-                print ("\n")
 
             elif layer_dic[LAYER_TYPE] == "shortcut":
                 from_layer = int(layer_dic["from"])
                 abs_shrtct_layer = index + from_layer
                 output = feature_map_list[abs_shrtct_layer]
 
-                print ("shortcut")
-                print (index)
-                print (output.size())
-                print ("\n")
-
             elif layer_dic[LAYER_TYPE] == "upsample":
                 output = module_list[index](input)
-                print ("upsample")
-                print (index)
-                print ("\n")
 
             elif layer_dic[LAYER_TYPE] == "route":
                 layers = layer_dic["layers"]
@@ -160,8 +196,22 @@ class Yolo3(nn.Module):
                     output = feature_map_list[absolute_route_layer]
 
             elif layer_dic[LAYER_TYPE] == "yolo": 
-                print (input.size())
-                print (index)
+                #rewrite from here
+                anchors = layer_dic["anchors"].split(",")
+                anc_list = []
+                i = 0
+                while i < len(anchors) - 1:
+                    anch = (int(anchors[i]), int(anchors[i+1]))
+                    anc_list.append(anch)
+                    i = i + 2
+                mask = layer_dic["mask"].split(",")
+                anchors = []
+                for item in range (len(mask)):
+                    anchors.append(anc_list[int(mask[item])])
+
+                #rewrite till here
+                output = transform_yolo_output(input, anchors)
+                
                 break
 
 
@@ -171,5 +221,6 @@ class Yolo3(nn.Module):
 
 input = torch.randn(1, 3, 416, 416)
 net = Yolo3("assets/config.cfg")
-print (net)
 net(input)
+
+

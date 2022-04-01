@@ -15,16 +15,14 @@ Yolo Implementation:
         - upsample block
         - yolo block:
             - output is in the form of batch_size x 255 x SxS grid. We'll have to loop through each item in the batch.
-                - The number 255 corresponds to total values in a cell: 85 x 3.
-                - Transpose the input to SxSx255 
+                - The number 255 corresponds to total values in a cell: 85 x 3. Transpose the input to SxSx255 
                 - flatten the grid into a column tensor. Dimensions would be S*S x 255
-                - each row in this tensor contains data for 3 BBs
-                - again flatten the above column tensor: one row for one bounding box. The dimensions now would be S*S*3 x 85
+                - each row in this tensor contains data for 3 BBs. Again flatten the above tensor: one row for one bounding box. The dimensions now would be (S*S *3) x 85
                 - apply sigmoid on first, second, and fifth element of each row
-            - create a grid with the values of cx and cys
-            - do the appropriate repeats 
-            - do the bounding box calculations (bx = cx + sigmoid(tx), and other such calculations)
-                - make sure to perform assert checks
+                - create a grid with the values of cx and cys
+                - do the appropriate repeats 
+                - do the bounding box calculations (bx = cx + sigmoid(tx), and other such calculations)
+                    - make sure to perform assert checks
             - zero the elements that have fifth element below the detection threshold
             - remove the elements that have zero value for 5th element
             - for each row, reduce the number of elements to 7: bx, by, bw, bh, the class index this bb corresponds to, the confidence in that class. the last two values will retrieved by using max function (one bb can have only one object. the class having max probab is the class detected)
