@@ -21,7 +21,6 @@ def parse_cfg(cfg_file):
     layer_dic = {}
     for line in lines:
         if len(line) != 0 and not line.startswith("#"):
-            print (line)
             if line.startswith("["):
                 if len(layer_dic) != 0:
                     layer_dic_list.append(layer_dic)
@@ -33,22 +32,24 @@ def parse_cfg(cfg_file):
     
     layer_dic_list.append(layer_dic)
 
+    return layer_dic_list
+
 def create_module_list(layer_dic_list):
     # ModuleList is being used to enable transfer learning we might want to work on later.
     module_list = nn.ModuleList()
     net_info = layer_dic_list[0]
+    layer_dic_list = layer_dic_list[1:]
 
     prev_filter = 3
     filter_list = []
 
     for index, layer in enumerate(layer_dic_list):
         if layer[LAYER_TYPE] == "convolutional":
-            out_filters = layer["filters"]
-            kernel = layer["size"]
-            stride = layer["stride"]
-            pad = layer["pad"]
+            out_filters = int(layer["filters"])
+            kernel = int(layer["size"])
+            stride = int(layer["stride"])
+            pad = int(layer["pad"])
             activation = layer["activation"]
-
             try:
                 batch_normlize = layer["batch_normalize"]
                 bias = False
@@ -65,7 +66,7 @@ def create_module_list(layer_dic_list):
             
             if activation == "leaky":
                 activation_module = nn.LeakyReLU()
-                module_list.add_module("leaky_{0}".format(index, activation_module))
+                module_list.add_module("leaky_{0}".format(index), activation_module)
 
         if layer[LAYER_TYPE] == "shortcut":
             shortcut_module = EmptyLayer()
@@ -74,7 +75,7 @@ def create_module_list(layer_dic_list):
         if layer[LAYER_TYPE] == "upsample":
             stride = layer["stride"]
             upsample_module = nn.Upsample(scale_factor = stride, mode="bilinear")
-            module_list.add_module("upsample_{0}".format(index, upsample_module))
+            module_list.add_module("upsample_{0}".format(index), upsample_module)
 
         if layer[LAYER_TYPE] == "route":
             route_module = EmptyLayer()
@@ -91,7 +92,8 @@ def create_module_list(layer_dic_list):
     return net_info, module_list
 
 
-# class Yolo3(nn.Module):
-#     def __init__(self, cfg_file) -> None:
-#         super().__init__()
-#         self.layer_dic_list = parse_config(cfg_file)
+class Yolo3(nn.Module):
+    def __init__(self, cfg_file):
+        super().__init__(self)
+        self.layer_dic_list = parse_cfg(cfg_file)
+        self.net_info, self.module_list = create_module_list(self.layer_dic_list)
