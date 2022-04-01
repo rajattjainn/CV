@@ -97,3 +97,48 @@ class Yolo3(nn.Module):
         super().__init__(self)
         self.layer_dic_list = parse_cfg(cfg_file)
         self.net_info, self.module_list = create_module_list(self.layer_dic_list)
+
+    def forward(self, input):
+        layer_dic_list = self.layer_dic_list[1:]
+        module_list = self.module_list
+        feature_map_list = []
+
+        for index, layer_dic in enumerate(layer_dic_list):
+            if layer_dic[LAYER_TYPE] == "convolutional":
+                output = module_list[index](input)
+
+            elif layer_dic[LAYER_TYPE] == "shortcut":
+                from_layer = int(layer_dic["from"])
+                abs_shrtct_layer = index + from_layer
+                output = feature_map_list[abs_shrtct_layer]
+
+            elif layer_dic[LAYER_TYPE] == "upsample":
+                output = module_list[index](input)
+
+            elif layer_dic[LAYER_TYPE] == "route":
+                layers = layer_dic["layers"]
+                
+                if layers.contain(","):
+                    layers = layers.split(",")
+                    layer1 = int(layers[0])
+                    layer2 = int(layers[1])
+
+                    if layer1 < 0:
+                        layer1 = index + layer1
+                    if layer2 < 0:
+                        layer2 = index + layer2
+
+                    out1 = feature_map_list[layer1]
+                    out2 = feature_map_list[layer2]
+                    output = torch.cat((out1, out2), 1)
+                else:
+                    layer = int(layers)
+                    absolute_route_layer = index + layer
+                    output = feature_map_list[absolute_route_layer]
+
+            elif layer_dic[LAYER_TYPE] == "yolo": 
+
+
+            feature_map_list.append(output)
+            input = output
+
