@@ -103,57 +103,49 @@ def create_module_list(layer_dic_list):
     return net_info, module_list
 
 def get_mesh_grid(grid_size):
-    #Rewrite this part
-    x_range = np.arange(0, grid_size)
-    y_range = np.arange(0, grid_size)
-    x,y = np.meshgrid(x_range, y_range)
-    x = x.repeat(3,1)
-    y = y.repeat(3,1)
-    x_cord_tensor = torch.tensor(x)
-    y_cord_tensor = torch.tensor(y)
-    x_cord_tensor = x_cord_tensor.view(-1,1)
-    y_cord_tensor = y_cord_tensor.view(-1,1)
+    """
+    Returns 2 tensors which can be added to 0th and 1st column of the img tensor
+    """
+    x_range = torch.arange(0, grid_size)
+    y_range = torch.arange(0, grid_size)
+    x,y = torch.meshgrid(x_range, y_range)
+    
+    # repeat the thrice because each yolo output cell contains data for 3 bounding boxes. 
+    # 0th and 1st column in the img tensor represents the cx and cy values In order to add
+    # the offsets, the tensors need to converted to column tensors after repeat 
+    x_cord_tensor = x.repeat(3,1).view(-1,1)
+    y_cord_tensor = y.repeat(3,1).view(-1,1)
 
+    # convet the np arrays into tensors
     return x_cord_tensor, y_cord_tensor
 
 def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
+    input = input.float()
     batch_size = input.size(0)
     grid_size = input[0].size(1)
     stride = height/input[0].size(2)
-
-    #rewrite
-    anc_tensor_exists = False
-    for item in anchors:
-        if anc_tensor_exists:
-            anc_tensor = torch.cat((anc_tensor, torch.tensor(item)),0)
-        else:
-            anc_tensor = torch.tensor(item)
-            anc_tensor_exists = True
-
-    print (anc_tensor)        
-    anc_tensor = anc_tensor.view(-1, 2).repeat(grid_size*grid_size,1)
-    print (anc_tensor)
-    print (anc_tensor.size())
+    anc_tensor = torch.tensor(anchors)
+    anc_tensor = anc_tensor.repeat(grid_size*grid_size,1)
+    glbl_dtctn_dict = {}
     #ToDo: add a marker for the image in the return type
     for i in range(batch_size):
         img = input[i]
-        
+
         img = img.transpose(0,2).contiguous()
         img = img.view(grid_size * grid_size, -1)
         img = img.view(grid_size * grid_size * 3, -1)
 
         # perform yolo calculations
-        img[:, 0] = torch.sigmoid(img[:, 0])
-        img[:, 1] = torch.sigmoid(img[:, 1])
+        # img[:, 0] = torch.sigmoid(img[:, 0])
+        # img[:, 1] = torch.sigmoid(img[:, 1])
         img[:, 4] = torch.sigmoid(img[:, 4])
-        img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
-        img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
+        # img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
+        # img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
 
-        # add offset to cx and cy
         x_cord_tensor, y_cord_tensor = get_mesh_grid(grid_size)
         img[:, 0] = img[:, 0] + x_cord_tensor.squeeze(1)
         img[:, 1] = img[:, 1] + y_cord_tensor.squeeze(1)
-
+        
         # extract only those rows which have confidence more than conf_threshold        
         img = img[img[:, 4] > cnf_thres]
 
@@ -165,37 +157,39 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
         boxes[:,3] = img[:, 1] + img[:,3]/2
         img[:, :4] = boxes
 
-        max_values = torch.max(img[:,5:], 1)
-        img = torch.cat((img[:, :5], max_values[0].unsqueeze(1), max_values[1].unsqueeze(1)), 1)
+        max_values, indices = torch.max(img[:,5:], 1)
 
-        ## at this point, the img tensor has 7 values in each row: bx1, bx2, by1, by2, cls_confidence, class
-        classes = torch.unique(img[:, 6])
+        img = torch.cat((img[:, :5], max_values.unsqueeze(1), indices.float().unsqueeze(1)), 1)
+
+        ## at this point, the img tensor has 7 values in each row: bx1, by1, bx2, by2, cls_confidence, class
         dtctn_tnsr_exsts = False
+        classes = torch.unique(img[:, 6])
         
         for cls in classes:
             cls_tensor = img[torch.where(img[:, 6] == cls)]
             cls_tensor = cls_tensor[cls_tensor[:,5].sort()[1]]
             iou_tensor = tvo.box_iou(cls_tensor, cls_tensor)
             rejected_indices = []
-            detections = []
+            detected_indices = []
+            #TODO: have a helper function to generate an image with all bbs drawn at this stage
             for row in range(iou_tensor.size(0)):
                 if row in rejected_indices:
                     continue
-                a = torch.where(iou_tensor[row] > iou_thres)[0]
-                print ("index: " + str(row))
-                # print (a.tolist())
-                # print (type(a.tolist()))
-                rejected_indices.extend(a.tolist())
-                detections.append(row)
+                exceeding_thres_tensor = torch.where(iou_tensor[row] > iou_thres)[0]
+                rejected_indices.extend(exceeding_thres_tensor.tolist())
+                detected_indices.append(row)
             
             if dtctn_tnsr_exsts:
                 detection_tensor = torch.cat((detection_tensor, cls_tensor[detections]), 1)
             else:
-                detection_tensor = cls_tensor[detections]
+                detection_tensor = cls_tensor[detected_indices]
                 dtctn_tnsr_exsts = True
 
 
-    return stride * detection_tensor
+        if dtctn_tnsr_exsts:
+            glbl_dtctn_dict[i] = stride * detection_tensor
+
+    return glbl_dtctn_dict
 
 def get_anchors(anchor_string, mask):
     """
@@ -265,11 +259,12 @@ class Yolo3(nn.Module):
                     output = feature_map_list[absolute_route_layer]
 
             elif layer_dic[LAYER_TYPE] == "yolo": 
-                height = self.net_info["height"]
+                height = int(self.net_info["height"])
                 anchor_str = layer_dic["anchors"].split(",")
                 mask = layer_dic["mask"].split(",")
                 anchors = get_anchors(anchor_str, mask)
-                
+                print ("in yolo")
+                print (input.size())
                 output = transform_yolo_output(input, anchors, height, cnf_thres = 0.5, iou_thres=0.4)
                 
                 break
@@ -278,29 +273,19 @@ class Yolo3(nn.Module):
             feature_map_list.append(output)
             input = output
 
-
-input = torch.randn(1, 3, 416, 416)
-net = Yolo3("assets/config.cfg")
-net(input)
+# input = torch.randn(1, 3, 416, 416)
+# net = Yolo3("assets/config.cfg")
+# net(input)
 
 anchors = [(2,2), (4,4), (5,5)]
 height = 32
 cnf_thres = 0.5
 iou_thres = 0.5
 
-test_input = np.zeros((3,16,16))
-channel1 = np.ones((16,16))
-channel2 = np.ones((16,16)) + 1
-channel3 = np.ones((16,16)) + 2
+test_input = torch.ones((1,255,13,13))
 
-test_input[0] = channel1
-test_input[1] = channel2
-test_input[2] = channel3
-test_input = torch.from_numpy(test_input)
-test_input = test_input.unsqueeze(0)
-# print (test_input)
-# print ("\n\n")
-# print (test_input.size())
+print ("test_input")
+print (test_input.size())
+print ("\n\n")
 
-# transform_yolo_output(test_input, anchors, height, cnf_thres, iou_thres)
-   
+transform_yolo_output(test_input, anchors, height, cnf_thres, iou_thres)
