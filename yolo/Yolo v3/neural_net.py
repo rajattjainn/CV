@@ -128,7 +128,7 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
     stride = height/input[0].size(2)
     anc_tensor = torch.tensor(anchors)
     anc_tensor = anc_tensor.repeat(grid_size*grid_size,1)
-    glbl_dtctn_dict = {}
+
     #ToDo: add a marker for the image in the return type
     for i in range(batch_size):
         img = input[i]
@@ -138,11 +138,11 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
         img = img.view(grid_size * grid_size * 3, -1)
 
         # perform yolo calculations
-        # img[:, 0] = torch.sigmoid(img[:, 0])
-        # img[:, 1] = torch.sigmoid(img[:, 1])
+        img[:, 0] = torch.sigmoid(img[:, 0])
+        img[:, 1] = torch.sigmoid(img[:, 1])
         img[:, 4] = torch.sigmoid(img[:, 4])
-        # img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
-        # img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
+        img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
+        img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
 
         x_cord_tensor, y_cord_tensor = get_mesh_grid(grid_size)
         img[:, 0] = img[:, 0] + x_cord_tensor.squeeze(1)
@@ -187,10 +187,7 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
                 detection_tensor = cls_tensor[detected_indices]
                 dtctn_tnsr_exsts = True
             
-        if dtctn_tnsr_exsts:
-            glbl_dtctn_dict[i] = stride * detection_tensor
-
-    return glbl_dtctn_dict
+    return stride * detection_tensor
 
 def get_anchors(anchor_string, mask):
     """
@@ -214,7 +211,6 @@ def get_anchors(anchor_string, mask):
 
     return anchor_list
     
-
 class Yolo3(nn.Module):
     def __init__(self, cfg_file):
         super().__init__()
@@ -226,6 +222,7 @@ class Yolo3(nn.Module):
         module_list = self.module_list
         feature_map_list = []
 
+        dtctn_tensor_exists = False
         for index, layer_dic in enumerate(layer_dic_list):
             if layer_dic[LAYER_TYPE] == "convolutional":
                 output = module_list[index](input)
@@ -264,16 +261,18 @@ class Yolo3(nn.Module):
                 anchor_str = layer_dic["anchors"].split(",")
                 mask = layer_dic["mask"].split(",")
                 anchors = get_anchors(anchor_str, mask)
-                print ("in yolo")
-                print (input.size())
+
                 output = transform_yolo_output(input, anchors, height, cnf_thres = 0.5, iou_thres=0.4)
                 
-                break
-
-
+                if dtctn_tensor_exists:
+                    detection_tensor = torch.cat((detection_tensor, output), 1)
+                else:
+                    detection_tensor = output
+                    dtctn_tensor_exists = True
             feature_map_list.append(output)
             input = output
 
+        return detection_tensor
 # input = torch.randn(1, 3, 416, 416)
 # net = Yolo3("assets/config.cfg")
 # net(input)
