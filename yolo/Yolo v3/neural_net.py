@@ -2,6 +2,7 @@ from sysconfig import parse_config_h
 import torch
 from torch import nn as nn
 import numpy as np
+import torchvision.ops as tvo
 
 LAYER_TYPE = "layer_type"
 
@@ -115,9 +116,10 @@ def get_mesh_grid(grid_size):
 
     return x_cord_tensor, y_cord_tensor
 
-def transform_yolo_output(input, anchors, cnf_thres):
+def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
     batch_size = input.size(0)
     grid_size = input[0].size(1)
+    stride = height/input[0].size(2)
 
     #rewrite
     anc_tensor_exists = False
@@ -130,7 +132,7 @@ def transform_yolo_output(input, anchors, cnf_thres):
             
     anc_tensor = anc_tensor.view(-1, 2).repeat(grid_size*grid_size,1)
 
-
+    #ToDo: add a marker for the image in the return type
     for i in range(batch_size):
         img = input[i]
         
@@ -138,24 +140,60 @@ def transform_yolo_output(input, anchors, cnf_thres):
         img = img.view(grid_size * grid_size, -1)
         img = img.view(grid_size * grid_size * 3, -1)
 
+        # perform yolo calculations
         img[:, 0] = torch.sigmoid(img[:, 0])
         img[:, 1] = torch.sigmoid(img[:, 1])
         img[:, 4] = torch.sigmoid(img[:, 4])
-        
-        x_cord_tensor, y_cord_tensor = get_mesh_grid(grid_size)
-
-        img[:, 0] = img[:, 0] + x_cord_tensor.squeeze(1)
-        img[:, 1] = img[:, 1] + y_cord_tensor.squeeze(1)
-        
         img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
         img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
 
+        # add offset to cx and cy
+        x_cord_tensor, y_cord_tensor = get_mesh_grid(grid_size)
+        img[:, 0] = img[:, 0] + x_cord_tensor.squeeze(1)
+        img[:, 1] = img[:, 1] + y_cord_tensor.squeeze(1)
+
+        # extract only those rows which have confidence more than conf_threshold        
         img = img[img[:, 4] > cnf_thres]
+
+        # convert bx, by, bw, bh into bx1, by1, bx2, by2
+        boxes = img[:,:4]
+        boxes[:,0] = img[:, 0] - img[:,2]/2
+        boxes[:,1] = img[:, 1] - img[:,3]/2
+        boxes[:,2] = img[:, 0] + img[:,2]/2
+        boxes[:,3] = img[:, 1] + img[:,3]/2
+        img[:, :4] = boxes
 
         max_values = torch.max(img[:,5:], 1)
         img = torch.cat((img[:, :5], max_values[0].unsqueeze(1), max_values[1].unsqueeze(1)), 1)
 
-        print (img.size())
+        ## at this point, the img tensor has 7 values in each row: bx1, bx2, by1, by2, cls_confidence, class
+        classes = torch.unique(img[:, 6])
+        dtctn_tnsr_exsts = False
+        
+        for cls in classes:
+            cls_tensor = img[torch.where(img[:, 6] == cls)]
+            cls_tensor = cls_tensor[cls_tensor[:,5].sort()[1]]
+            iou_tensor = tvo.box_iou(cls_tensor, cls_tensor)
+            rejected_indices = []
+            detections = []
+            for row in range(iou_tensor.size(0)):
+                if row in rejected_indices:
+                    continue
+                a = torch.where(iou_tensor[row] > iou_thres)[0]
+                print ("index: " + str(row))
+                # print (a.tolist())
+                # print (type(a.tolist()))
+                rejected_indices.extend(a.tolist())
+                detections.append(row)
+            
+            if dtctn_tnsr_exsts:
+                detection_tensor = torch.cat((detection_tensor, cls_tensor[detections]), 1)
+            else:
+                detection_tensor = cls_tensor[detections]
+                dtctn_tnsr_exsts = True
+
+
+    return stride * detection_tensor
 
 
 class Yolo3(nn.Module):
@@ -217,7 +255,8 @@ class Yolo3(nn.Module):
                     anchors.append(anc_list[int(mask[item])])
 
                 #rewrite till here
-                output = transform_yolo_output(input, anchors, cnf_thres = 0.5)
+                height = self.net_info["height"]
+                output = transform_yolo_output(input, anchors, height, cnf_thres = 0.5, iou_thres=0.4)
                 
                 break
 

@@ -25,6 +25,7 @@ Yolo Implementation:
                     - make sure to perform assert checks
             - zero the elements that have fifth element below the detection threshold
             - remove the elements that have zero value for 5th element
+            - convert bx,by,bw,bh to bx1, bx2, by1, by2 ==> from center coordinates and width, height to box coordinates
             - for each row, reduce the number of elements to 7: bx, by, bw, bh, the class index this bb corresponds to, the confidence in that class. the last two values will retrieved by using max function (one bb can have only one object. the class having max probab is the class detected)
 
             // at this time, we have only those bbs which have some probability of detecting an element. The bbs have 7 coordinates as explained above. One problem to solve for: same element can be detected by multiple boxes (not cells, boxes)
