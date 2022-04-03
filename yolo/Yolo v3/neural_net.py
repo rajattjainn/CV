@@ -164,11 +164,15 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
         ## at this point, the img tensor has 7 values in each row: bx1, by1, bx2, by2, cls_confidence, class
         dtctn_tnsr_exsts = False
         classes = torch.unique(img[:, 6])
-        
         for cls in classes:
+            # retrieve all the rows which correspond to class cls
             cls_tensor = img[torch.where(img[:, 6] == cls)]
+
+            # sort cls_tensor according to max confidence
             cls_tensor = cls_tensor[cls_tensor[:,5].sort()[1]]
-            iou_tensor = tvo.box_iou(cls_tensor, cls_tensor)
+            
+            # box_iou takes tensors which have only 4 columns
+            iou_tensor = tvo.box_iou(cls_tensor[:,:4], cls_tensor[:,:4])
             rejected_indices = []
             detected_indices = []
             #TODO: have a helper function to generate an image with all bbs drawn at this stage
@@ -180,7 +184,8 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
                 detected_indices.append(row)
             
             if dtctn_tnsr_exsts:
-                detection_tensor = torch.cat((detection_tensor, cls_tensor[detections]), 1)
+                detection_tensor = torch.cat((detection_tensor, cls_tensor[detected_indices]), 0)
+                
             else:
                 detection_tensor = cls_tensor[detected_indices]
                 dtctn_tnsr_exsts = True
@@ -209,12 +214,13 @@ def get_anchors(anchor_string, mask):
 
     return anchor_list
 
-def draw_rectangle(image_path):
+def draw_rectangle(image_path, detections):
     source_img = Image.open(image_path).convert("RGB")
-
     draw = ImageDraw.Draw(source_img)
-    draw.rectangle(((0, 00), (100, 100)), outline = "#FF0000", fill=None)
-    draw.text((0, 0), "something123")
+    
+    for detection in range(detection.size()[0]):
+        draw.rectangle(((0, 00), (100, 100)), outline = "#FF0000", fill=None)
+        draw.text((0, 0), "something123")
 
     source_img.save("det/dog.jpg", "JPEG")
 
@@ -222,6 +228,8 @@ def image_to_tensor(image_path):
     image = Image.open(image_path)
     tform = transforms.Compose([transforms.PILToTensor(), transforms.Resize((416, 416))])
     img_tensor = tform(image)
+    img_tensor = img_tensor/255
+    img_tensor = img_tensor.unsqueeze(0)
     return img_tensor
 
 
@@ -235,9 +243,10 @@ class Yolo3(nn.Module):
         layer_dic_list = self.layer_dic_list[1:]
         module_list = self.module_list
         feature_map_list = []
-
-        dtctn_tensor_exists = False
+        dtctn_exists = False
         for index, layer_dic in enumerate(layer_dic_list):
+            print ("index")
+            print (index)
             if layer_dic[LAYER_TYPE] == "convolutional":
                 output = module_list[index](input)
 
@@ -252,7 +261,7 @@ class Yolo3(nn.Module):
             elif layer_dic[LAYER_TYPE] == "route":
                 layers = layer_dic["layers"]
                 
-                if layers.contain(","):
+                if "," in layers:
                     layers = layers.split(",")
                     layer1 = int(layers[0])
                     layer2 = int(layers[1])
@@ -277,20 +286,21 @@ class Yolo3(nn.Module):
                 anchors = get_anchors(anchor_str, mask)
 
                 output = transform_yolo_output(input, anchors, height, cnf_thres = 0.5, iou_thres=0.4)
-                
-                if dtctn_tensor_exists:
-                    detection_tensor = torch.cat((detection_tensor, output), 1)
+                if dtctn_exists:
+                    detection_tensor = torch.cat((detection_tensor, output), 0)
                 else:
                     detection_tensor = output
-                    dtctn_tensor_exists = True
+                    dtctn_exists = True
             feature_map_list.append(output)
             input = output
-
+        print (detection_tensor.size())
+        print ("detection_tensor.size()")
         return detection_tensor
 
 
-img_tensor = image_to_tensor("images/dog.jpg")
+img = "images/dog.jpg"
+img_tensor = image_to_tensor(img)
 net = Yolo3("assets/config.cfg")
-net(img_tensor)
+detections = net(img_tensor)
 
-
+# draw_rectangle(img, detections)
