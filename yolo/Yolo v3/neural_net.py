@@ -1,8 +1,10 @@
-from sysconfig import parse_config_h
 import torch
 from torch import nn as nn
 import numpy as np
 import torchvision.ops as tvo
+
+from PIL import Image
+import torchvision.transforms as transforms
 
 LAYER_TYPE = "layer_type"
 
@@ -184,8 +186,7 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
             else:
                 detection_tensor = cls_tensor[detected_indices]
                 dtctn_tnsr_exsts = True
-
-
+            
         if dtctn_tnsr_exsts:
             glbl_dtctn_dict[i] = stride * detection_tensor
 
@@ -284,8 +285,16 @@ iou_thres = 0.5
 
 test_input = torch.ones((1,255,13,13))
 
-print ("test_input")
-print (test_input.size())
-print ("\n\n")
+# print ("test_input")
+# print (test_input.size())
+# print ("\n\n")
 
-transform_yolo_output(test_input, anchors, height, cnf_thres, iou_thres)
+# transform_yolo_output(test_input, anchors, height, cnf_thres, iou_thres)
+
+def image_to_tensor(image_path):
+    image = Image.open(image_path)
+    tform = transforms.Compose([transforms.PILToTensor(), transforms.Resize((416, 416))])
+    img_tensor = tform(image)
+    return img_tensor
+
+img_tensor = image_to_tensor("images/dog.jpg")
