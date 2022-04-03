@@ -1,10 +1,8 @@
 import torch
 from torch import nn as nn
-import numpy as np
 import torchvision.ops as tvo
-
-from PIL import Image
 import torchvision.transforms as transforms
+from PIL import Image, ImageDraw
 
 LAYER_TYPE = "layer_type"
 
@@ -210,7 +208,23 @@ def get_anchors(anchor_string, mask):
         anchor_list.append(anc_list[int(mask[item])])
 
     return anchor_list
-    
+
+def draw_rectangle(image_path):
+    source_img = Image.open(image_path).convert("RGB")
+
+    draw = ImageDraw.Draw(source_img)
+    draw.rectangle(((0, 00), (100, 100)), outline = "#FF0000", fill=None)
+    draw.text((0, 0), "something123")
+
+    source_img.save("det/dog.jpg", "JPEG")
+
+def image_to_tensor(image_path):
+    image = Image.open(image_path)
+    tform = transforms.Compose([transforms.PILToTensor(), transforms.Resize((416, 416))])
+    img_tensor = tform(image)
+    return img_tensor
+
+
 class Yolo3(nn.Module):
     def __init__(self, cfg_file):
         super().__init__()
@@ -273,27 +287,10 @@ class Yolo3(nn.Module):
             input = output
 
         return detection_tensor
-# input = torch.randn(1, 3, 416, 416)
-# net = Yolo3("assets/config.cfg")
-# net(input)
 
-anchors = [(2,2), (4,4), (5,5)]
-height = 32
-cnf_thres = 0.5
-iou_thres = 0.5
-
-test_input = torch.ones((1,255,13,13))
-
-# print ("test_input")
-# print (test_input.size())
-# print ("\n\n")
-
-# transform_yolo_output(test_input, anchors, height, cnf_thres, iou_thres)
-
-def image_to_tensor(image_path):
-    image = Image.open(image_path)
-    tform = transforms.Compose([transforms.PILToTensor(), transforms.Resize((416, 416))])
-    img_tensor = tform(image)
-    return img_tensor
 
 img_tensor = image_to_tensor("images/dog.jpg")
+net = Yolo3("assets/config.cfg")
+net(img_tensor)
+
+

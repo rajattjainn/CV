@@ -47,8 +47,8 @@ Yolo Implementation:
                 - add to the detections tensor to global_detection dict. A key in this dict would be the index of the batch, value would be a tensor with each row corresponding to a detection, 7 columns corresponding to attributes defined earlier.
 
 - load the weights (follow Akshay Kathooriya's blog)
-- read an image and pass through it to get the results
-- write a function to draw bounding boxes and name of the class
+- read an image and pass through it to get the results: **image_to_tensor** in **neural_net.py**
+- write a function to draw bounding boxes and name of the class: **draw_rectangle()** in **neural_net.py**
 
 - Write a shell script to download weights file
 - Automate conda env creation
