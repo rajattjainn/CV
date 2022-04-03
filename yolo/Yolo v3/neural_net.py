@@ -129,9 +129,11 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
         else:
             anc_tensor = torch.tensor(item)
             anc_tensor_exists = True
-            
-    anc_tensor = anc_tensor.view(-1, 2).repeat(grid_size*grid_size,1)
 
+    print (anc_tensor)        
+    anc_tensor = anc_tensor.view(-1, 2).repeat(grid_size*grid_size,1)
+    print (anc_tensor)
+    print (anc_tensor.size())
     #ToDo: add a marker for the image in the return type
     for i in range(batch_size):
         img = input[i]
@@ -195,6 +197,28 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
 
     return stride * detection_tensor
 
+def get_anchors(anchor_string, mask):
+    """
+    @param anchor_string: a list of strings, every 2 items denoting an anchor 
+    @param mask: once anchor_string has been converted into a list of tuples, with 2 elemets in each tuple, mask defines the indexes of items in the above list that have to be used for anchors   
+    @return anchor_list: a list of int tuples, each tuple defining the anchor
+
+    """
+    #TODO: Rewrite this function
+    anc_list = []
+    i = 0
+
+    while i < len(anchor_string) - 1:
+        anch = (int(anchor_string[i]), int(anchor_string[i+1]))
+        anc_list.append(anch)
+        i = i + 2
+    anchor_list = []
+
+    for item in range (len(mask)):
+        anchor_list.append(anc_list[int(mask[item])])
+
+    return anchor_list
+    
 
 class Yolo3(nn.Module):
     def __init__(self, cfg_file):
@@ -241,21 +265,11 @@ class Yolo3(nn.Module):
                     output = feature_map_list[absolute_route_layer]
 
             elif layer_dic[LAYER_TYPE] == "yolo": 
-                #rewrite from here
-                anchors = layer_dic["anchors"].split(",")
-                anc_list = []
-                i = 0
-                while i < len(anchors) - 1:
-                    anch = (int(anchors[i]), int(anchors[i+1]))
-                    anc_list.append(anch)
-                    i = i + 2
-                mask = layer_dic["mask"].split(",")
-                anchors = []
-                for item in range (len(mask)):
-                    anchors.append(anc_list[int(mask[item])])
-
-                #rewrite till here
                 height = self.net_info["height"]
+                anchor_str = layer_dic["anchors"].split(",")
+                mask = layer_dic["mask"].split(",")
+                anchors = get_anchors(anchor_str, mask)
+                
                 output = transform_yolo_output(input, anchors, height, cnf_thres = 0.5, iou_thres=0.4)
                 
                 break
@@ -268,3 +282,25 @@ class Yolo3(nn.Module):
 input = torch.randn(1, 3, 416, 416)
 net = Yolo3("assets/config.cfg")
 net(input)
+
+anchors = [(2,2), (4,4), (5,5)]
+height = 32
+cnf_thres = 0.5
+iou_thres = 0.5
+
+test_input = np.zeros((3,16,16))
+channel1 = np.ones((16,16))
+channel2 = np.ones((16,16)) + 1
+channel3 = np.ones((16,16)) + 2
+
+test_input[0] = channel1
+test_input[1] = channel2
+test_input[2] = channel3
+test_input = torch.from_numpy(test_input)
+test_input = test_input.unsqueeze(0)
+# print (test_input)
+# print ("\n\n")
+# print (test_input.size())
+
+# transform_yolo_output(test_input, anchors, height, cnf_thres, iou_thres)
+   

@@ -14,6 +14,8 @@ Yolo Implementation:
         - route block
         - upsample block
         - yolo block:
+            - get the anchors for this particular yolo layer. These anchors would be used for calculating the width and height of each bounding box.: **get_anchors** function in **neural_net.py**
+
             - output is in the form of batch_size x 255 x SxS grid. We'll have to loop through each item in the batch.
                 - The number 255 corresponds to total values in a cell: 85 x 3. Transpose the input to SxSx255 
                 - flatten the grid into a column tensor. Dimensions would be S*S x 255
