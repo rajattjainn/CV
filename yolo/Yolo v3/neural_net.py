@@ -139,9 +139,8 @@ def get_mesh_grid(grid_size):
     
     return x_cord_tensor, y_cord_tensor
 
-def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
+def transform_yolo_output(input, anchors, height):
     input = input.float()
-    batch_size = input.size(0)
     grid_size = input[0].size(1)
     stride = height // input[0].size(2)
     
@@ -149,76 +148,28 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
     anc_tensor = anc_tensor.repeat(grid_size*grid_size,1)
     anc_tensor = anc_tensor/stride
 
-    #ToDo: add a marker for the image in the return type
-    for i in range(batch_size):
-        img = input[i]
+    img = input[0]
 
-        img = img.transpose(0,2).contiguous()
-        img = img.view(grid_size * grid_size, -1)
-        img = img.view(grid_size * grid_size * 3, -1)
- 
-        # perform yolo calculations
-        img[:, 0] = torch.sigmoid(img[:, 0])
-        img[:, 1] = torch.sigmoid(img[:, 1])
-        img[:, 4] = torch.sigmoid(img[:, 4])
-        img[:, 5:] = torch.sigmoid(img[:, 5:]) 
-        img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
-        img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
+    img = img.transpose(0,2).contiguous()
+    img = img.view(grid_size * grid_size, -1)
+    img = img.view(grid_size * grid_size * 3, -1)
+    
+    # perform yolo calculations
+    img[:, 0] = torch.sigmoid(img[:, 0])
+    img[:, 1] = torch.sigmoid(img[:, 1])
+    img[:, 4] = torch.sigmoid(img[:, 4])
+    img[:, 5:] = torch.sigmoid(img[:, 5:]) 
+    img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
+    img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
 
-        x_cord_tensor, y_cord_tensor = get_mesh_grid(grid_size)
-        img[:, 0] = img[:, 0] + x_cord_tensor.squeeze(1)
-        img[:, 1] = img[:, 1] + y_cord_tensor.squeeze(1)
+    x_cord_tensor, y_cord_tensor = get_mesh_grid(grid_size)
+    img[:, 0] = img[:, 0] + x_cord_tensor.squeeze(1)
+    img[:, 1] = img[:, 1] + y_cord_tensor.squeeze(1)
         
-        # multiply the coordinates by stride 
-        img[:, :4] = img[:, :4] * stride
+    # multiply the coordinates by stride 
+    img[:, :4] = img[:, :4] * stride
 
-        # extract only those rows which have confidence more than conf_threshold        
-        img = img[img[:, 4] > cnf_thres]
-
-        # convert bx, by, bw, bh into bx1, by1, bx2, by2
-        boxes = img[:,:4]
-        boxes[:,0] = img[:, 0] - img[:,2]/2
-        boxes[:,1] = img[:, 1] - img[:,3]/2
-        boxes[:,2] = img[:, 0] + img[:,2]/2
-        boxes[:,3] = img[:, 1] + img[:,3]/2
-        img[:, :4] = boxes
-
-        max_values, indices = torch.max(img[:,5:], 1)
-
-        img = torch.cat((img[:, :5], max_values.unsqueeze(1), indices.float().unsqueeze(1)), 1)
-
-        ## at this point, the img tensor has 7 values in each row: bx1, by1, bx2, by2, cls_confidence, class
-        dtctn_tnsr_exsts = False
-        classes = torch.unique(img[:, 6])
-        print ("classes")
-        print (classes)
-        for cls in classes:
-            # retrieve all the rows which correspond to class cls
-            cls_tensor = img[torch.where(img[:, 6] == cls)]
-
-            # sort cls_tensor according to max confidence
-            cls_tensor = cls_tensor[cls_tensor[:,5].sort()[1]]
-            
-            # box_iou takes tensors which have only 4 columns
-            iou_tensor = tvo.box_iou(cls_tensor[:,:4], cls_tensor[:,:4])
-            rejected_indices = []
-            detected_indices = []
-            #TODO: have a helper function to generate an image with all bbs drawn at this stage
-            for row in range(iou_tensor.size(0)):
-                if row in rejected_indices:
-                    continue
-                exceeding_thres_tensor = torch.where(iou_tensor[row] > iou_thres)[0]
-                rejected_indices.extend(exceeding_thres_tensor.tolist())
-                detected_indices.append(row)
-            
-            if dtctn_tnsr_exsts:
-                detection_tensor = torch.cat((detection_tensor, cls_tensor[detected_indices]), 0)
-                
-            else:
-                detection_tensor = cls_tensor[detected_indices]
-                dtctn_tnsr_exsts = True
-            
-    return detection_tensor
+    return img.unsqueeze(0)
 
 def get_anchors(anchor_string, mask):
     """
@@ -309,16 +260,19 @@ class Yolo3(nn.Module):
                 height = int(self.net_info["height"])
                 anchor_str = layer_dic["anchors"].split(",")
                 mask = layer_dic["mask"].split(",")
-                anchors = get_anchors(anchor_str, mask)
                                 
-                output = transform_yolo_output(input, anchors, height, cnf_thres = 0.5, iou_thres=0.4)
+                anchors = get_anchors(anchor_str, mask)
+                
+                output = transform_yolo_output(input, anchors, height)
+                
                 if dtctn_exists:
-                    detection_tensor = torch.cat((detection_tensor, output), 0)
+                    detection_tensor = torch.cat((detection_tensor, output), 1)
                 else:
                     detection_tensor = output
                     dtctn_exists = True
             feature_map_list.append(output)
             input = output
+
         return detection_tensor
 
     def load_weights(self, weightfile):
@@ -407,6 +361,55 @@ class Yolo3(nn.Module):
                     
                 conv_weights = conv_weights.view_as(conv.weight.data)
                 conv.weight.data.copy_(conv_weights)
+
+def analyze_transactions(img, cnf_thres, iou_thres):
+    img = img[img[:, 4] > cnf_thres]
+
+    # convert bx, by, bw, bh into bx1, by1, bx2, by2
+    boxes = img[:,:4]
+    boxes[:,0] = img[:, 0] - img[:,2]/2
+    boxes[:,1] = img[:, 1] - img[:,3]/2
+    boxes[:,2] = img[:, 0] + img[:,2]/2
+    boxes[:,3] = img[:, 1] + img[:,3]/2
+    img[:, :4] = boxes
+
+    max_values, indices = torch.max(img[:,5:], 1)
+
+    img = torch.cat((img[:, :5], max_values.unsqueeze(1), indices.float().unsqueeze(1)), 1)
+
+    ## at this point, the img tensor has 7 values in each row: bx1, by1, bx2, by2, cls_confidence, class
+    dtctn_tnsr_exsts = False
+    classes = torch.unique(img[:, 6])
+    print ("classes")
+    print (classes)
+    for cls in classes:
+        # retrieve all the rows which correspond to class cls
+        cls_tensor = img[torch.where(img[:, 6] == cls)]
+
+        # sort cls_tensor according to max confidence
+        cls_tensor = cls_tensor[cls_tensor[:,5].sort()[1]]
+            
+        # box_iou takes tensors which have only 4 columns
+        iou_tensor = tvo.box_iou(cls_tensor[:,:4], cls_tensor[:,:4])
+        rejected_indices = []
+        detected_indices = []
+        #TODO: have a helper function to generate an image with all bbs drawn at this stage
+        for row in range(iou_tensor.size(0)):
+            if row in rejected_indices:
+                continue
+            exceeding_thres_tensor = torch.where(iou_tensor[row] > iou_thres)[0]
+            rejected_indices.extend(exceeding_thres_tensor.tolist())
+            detected_indices.append(row)
+            
+        if dtctn_tnsr_exsts:
+            detection_tensor = torch.cat((detection_tensor, cls_tensor[detected_indices]), 0)
+                
+        else:
+            detection_tensor = cls_tensor[detected_indices]
+            dtctn_tnsr_exsts = True
+            
+    return detection_tensor
+
 
 img = "images/dog-cycle-car.png"
 img_tensor = image_to_tensor(img)
