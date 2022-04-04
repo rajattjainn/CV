@@ -90,6 +90,23 @@ def create_module_list(layer_dic_list):
         if layer[LAYER_TYPE] == "route":
             route_module = EmptyLayer()
             module.add_module("route_{0}".format(index), route_module)
+            prev_layers = layer["layers"]
+            if "," in prev_layers:
+                prev_layers = prev_layers.split(",")
+                prev_layer1 = int(prev_layers[0])
+                prev_layer2 = int(prev_layers[1])
+
+                if prev_layer1 < 0:
+                    prev_layer1 = index + prev_layer1
+                if prev_layer2 < 0:
+                    prev_layer2 = index + prev_layer2
+
+                filter1 = filter_list[prev_layer1]
+                filter2 = filter_list[prev_layer2]
+                out_filters = filter1 + filter2
+            else:
+                prev_layers = int(prev_layers)
+                out_filters = filter_list[prev_layers]
 
         if layer[LAYER_TYPE] == "yolo":
             yolo_module = EmptyLayer()
@@ -245,8 +262,7 @@ class Yolo3(nn.Module):
         feature_map_list = []
         dtctn_exists = False
         for index, layer_dic in enumerate(layer_dic_list):
-            print ("index")
-            print (index)
+
             if layer_dic[LAYER_TYPE] == "convolutional":
                 output = module_list[index](input)
 
@@ -293,8 +309,6 @@ class Yolo3(nn.Module):
                     dtctn_exists = True
             feature_map_list.append(output)
             input = output
-        print (detection_tensor.size())
-        print ("detection_tensor.size()")
         return detection_tensor
 
 
@@ -302,5 +316,4 @@ img = "images/dog.jpg"
 img_tensor = image_to_tensor(img)
 net = Yolo3("assets/config.cfg")
 detections = net(img_tensor)
-
 # draw_rectangle(img, detections)
