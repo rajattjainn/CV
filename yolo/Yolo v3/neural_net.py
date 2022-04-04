@@ -5,6 +5,7 @@ import torchvision.ops as tvo
 import torchvision.transforms as transforms
 from PIL import Image, ImageDraw
 
+
 LAYER_TYPE = "layer_type"
 
 class EmptyLayer(nn.Module):
@@ -126,24 +127,27 @@ def get_mesh_grid(grid_size):
     """
     x_range = torch.arange(0, grid_size)
     y_range = torch.arange(0, grid_size)
-    x,y = torch.meshgrid(x_range, y_range)
-    
+
+    # intentionally y,x. in our operation, we'll traverse across the x axis first and then across y-axis.
+    y,x = torch.meshgrid(x_range, y_range)
+
     # repeat the thrice because each yolo output cell contains data for 3 bounding boxes. 
     # 0th and 1st column in the img tensor represents the cx and cy values In order to add
-    # the offsets, the tensors need to converted to column tensors after repeat 
-    x_cord_tensor = x.repeat(3,1).view(-1,1)
-    y_cord_tensor = y.repeat(3,1).view(-1,1)
-
-    # convet the np arrays into tensors
+    # the offsets, the tensors need to converted to column tensors after repeat
+    x_cord_tensor = x.contiguous().view(-1,1).repeat(1,3).view(-1,1)
+    y_cord_tensor = y.contiguous().view(-1,1).repeat(1,3).view(-1,1)
+    
     return x_cord_tensor, y_cord_tensor
 
 def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
     input = input.float()
     batch_size = input.size(0)
     grid_size = input[0].size(1)
-    stride = height/input[0].size(2)
+    stride = height // input[0].size(2)
+    
     anc_tensor = torch.tensor(anchors)
     anc_tensor = anc_tensor.repeat(grid_size*grid_size,1)
+    anc_tensor = anc_tensor/stride
 
     #ToDo: add a marker for the image in the return type
     for i in range(batch_size):
@@ -152,11 +156,12 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
         img = img.transpose(0,2).contiguous()
         img = img.view(grid_size * grid_size, -1)
         img = img.view(grid_size * grid_size * 3, -1)
-
+ 
         # perform yolo calculations
         img[:, 0] = torch.sigmoid(img[:, 0])
         img[:, 1] = torch.sigmoid(img[:, 1])
         img[:, 4] = torch.sigmoid(img[:, 4])
+        img[:, 5:] = torch.sigmoid(img[:, 5:]) 
         img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
         img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
 
@@ -164,6 +169,9 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
         img[:, 0] = img[:, 0] + x_cord_tensor.squeeze(1)
         img[:, 1] = img[:, 1] + y_cord_tensor.squeeze(1)
         
+        # multiply the coordinates by stride 
+        img[:, :4] = img[:, :4] * stride
+
         # extract only those rows which have confidence more than conf_threshold        
         img = img[img[:, 4] > cnf_thres]
 
@@ -210,7 +218,7 @@ def transform_yolo_output(input, anchors, height, cnf_thres, iou_thres):
                 detection_tensor = cls_tensor[detected_indices]
                 dtctn_tnsr_exsts = True
             
-    return stride * detection_tensor
+    return detection_tensor
 
 def get_anchors(anchor_string, mask):
     """
@@ -271,7 +279,7 @@ class Yolo3(nn.Module):
             elif layer_dic[LAYER_TYPE] == "shortcut":
                 from_layer = int(layer_dic["from"])
                 abs_shrtct_layer = index + from_layer
-                output = feature_map_list[abs_shrtct_layer]
+                output = feature_map_list[index - 1] + feature_map_list[abs_shrtct_layer]
 
             elif layer_dic[LAYER_TYPE] == "upsample":
                 output = module_list[index](input)
@@ -296,13 +304,13 @@ class Yolo3(nn.Module):
                     layer = int(layers)
                     absolute_route_layer = index + layer
                     output = feature_map_list[absolute_route_layer]
-
+                    
             elif layer_dic[LAYER_TYPE] == "yolo": 
                 height = int(self.net_info["height"])
                 anchor_str = layer_dic["anchors"].split(",")
                 mask = layer_dic["mask"].split(",")
                 anchors = get_anchors(anchor_str, mask)
-
+                                
                 output = transform_yolo_output(input, anchors, height, cnf_thres = 0.5, iou_thres=0.4)
                 if dtctn_exists:
                     detection_tensor = torch.cat((detection_tensor, output), 0)
@@ -400,11 +408,12 @@ class Yolo3(nn.Module):
                 conv_weights = conv_weights.view_as(conv.weight.data)
                 conv.weight.data.copy_(conv_weights)
 
-img = "images/dog.jpg"
+img = "images/dog-cycle-car.png"
 img_tensor = image_to_tensor(img)
+
 net = Yolo3("assets/config.cfg")
-# print (net)
 net.load_weights("assets/yolov3.weights")
 detections = net(img_tensor)
-print (detections.size())
+
+# print (detections.size())
 # draw_rectangle(img, detections)

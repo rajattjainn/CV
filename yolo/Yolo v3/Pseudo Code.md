@@ -17,6 +17,7 @@ Yolo Implementation:
             - get the anchors for this particular yolo layer. These anchors would be used for calculating the width and height of each bounding box.: **get_anchors** function in **neural_net.py**
             - depending upon the yolo layer, output would be of different size. perform necessary calculations, extract relevant values from the feature map: **transform_yolo_output** in **neural_net.py**
                 - Repeat the anchor tensor grid_size*grid_size times along first dimension. We will need this tensor later while performing yolo calculations.
+                - Divide the anchor tensor by stride --> if input has shrunk by a factor of stride, so should the anchors.
                 - output is in the form of batch_size x 255 x SxS grid. We'll have to loop through each item in the batch. [S = *grid_size* above]
                     - The number 255 corresponds to total values in a cell: 85 x 3. Transpose the input to SxSx255 
                     - Reshape the grid in order to have only 2 dimensions. Dimensions would be S*S x 255
