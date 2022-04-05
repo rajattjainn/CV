@@ -196,10 +196,9 @@ def get_anchors(anchor_string, mask):
 def draw_rectangle(image_path, detections):
     source_img = Image.open(image_path).convert("RGB")
     draw = ImageDraw.Draw(source_img)
-    
-    for detection in range(detection.size()[0]):
-        draw.rectangle(((0, 00), (100, 100)), outline = "#FF0000", fill=None)
-        draw.text((0, 0), "something123")
+    for detection in detections:
+        draw.rectangle(((detection[0].item(), detection[1].item()), (detection[2].item(), detection[3].item())), outline = "#FF0000", fill=None)
+        draw.text((detection[0].item(), detection[1].item()), "class: " + str(detection[6].item()) + ", confidence: " + str(detection[5].item()))
 
     source_img.save("det/dog.jpg", "JPEG")
 
@@ -260,7 +259,7 @@ class Yolo3(nn.Module):
                 height = int(self.net_info["height"])
                 anchor_str = layer_dic["anchors"].split(",")
                 mask = layer_dic["mask"].split(",")
-                                
+
                 anchors = get_anchors(anchor_str, mask)
                 
                 output = transform_yolo_output(input, anchors, height)
@@ -275,6 +274,7 @@ class Yolo3(nn.Module):
 
         return detection_tensor
 
+    # The load_weights functions has been copied as it is from Ayoosh kathuria's blog.
     def load_weights(self, weightfile):
     #Open the weights file
         fp = open(weightfile, "rb")
@@ -362,8 +362,13 @@ class Yolo3(nn.Module):
                 conv_weights = conv_weights.view_as(conv.weight.data)
                 conv.weight.data.copy_(conv_weights)
 
-def analyze_transactions(img, cnf_thres, iou_thres):
+def analyze_transactions(img, cnf_thres = 0.5, iou_thres = 0.4):
+    img = img[0]
     img = img[img[:, 4] > cnf_thres]
+    
+    # no detections
+    if img.size()[0] == 0:
+        return 0
 
     # convert bx, by, bw, bh into bx1, by1, bx2, by2
     boxes = img[:,:4]
@@ -373,21 +378,20 @@ def analyze_transactions(img, cnf_thres, iou_thres):
     boxes[:,3] = img[:, 1] + img[:,3]/2
     img[:, :4] = boxes
 
-    max_values, indices = torch.max(img[:,5:], 1)
+    max_values, class_values = torch.max(img[:,5:], 1)
 
-    img = torch.cat((img[:, :5], max_values.unsqueeze(1), indices.float().unsqueeze(1)), 1)
-
-    ## at this point, the img tensor has 7 values in each row: bx1, by1, bx2, by2, cls_confidence, class
+    img = torch.cat((img[:, :5], max_values.float().unsqueeze(1), class_values.float().unsqueeze(1)), 1)
+    
+    ## at this point, the img tensor has 7 values in each row: bx1, by1, bx2, by2, confidence, cls_confidence, class
     dtctn_tnsr_exsts = False
     classes = torch.unique(img[:, 6])
-    print ("classes")
-    print (classes)
+
     for cls in classes:
         # retrieve all the rows which correspond to class cls
         cls_tensor = img[torch.where(img[:, 6] == cls)]
 
         # sort cls_tensor according to max confidence
-        cls_tensor = cls_tensor[cls_tensor[:,5].sort()[1]]
+        cls_tensor = cls_tensor[cls_tensor[:,5].sort(descending = True)[1]]
             
         # box_iou takes tensors which have only 4 columns
         iou_tensor = tvo.box_iou(cls_tensor[:,:4], cls_tensor[:,:4])
@@ -400,16 +404,22 @@ def analyze_transactions(img, cnf_thres, iou_thres):
             exceeding_thres_tensor = torch.where(iou_tensor[row] > iou_thres)[0]
             rejected_indices.extend(exceeding_thres_tensor.tolist())
             detected_indices.append(row)
-            
+        
         if dtctn_tnsr_exsts:
+            print ("dtctn tnsr exists")
+            print (detection_tensor.size())
+            print (cls_tensor[detected_indices].size())
             detection_tensor = torch.cat((detection_tensor, cls_tensor[detected_indices]), 0)
                 
         else:
             detection_tensor = cls_tensor[detected_indices]
             dtctn_tnsr_exsts = True
-            
-    return detection_tensor
-
+            print ("dtctn tnsr does not exist")
+            print (detection_tensor.size())
+    try:
+        return detection_tensor
+    except:
+        return 0
 
 img = "images/dog-cycle-car.png"
 img_tensor = image_to_tensor(img)
@@ -417,6 +427,6 @@ img_tensor = image_to_tensor(img)
 net = Yolo3("assets/config.cfg")
 net.load_weights("assets/yolov3.weights")
 detections = net(img_tensor)
-
+detections = analyze_transactions(detections, cnf_thres = 0.5, iou_thres = 0.4)
 # print (detections.size())
-# draw_rectangle(img, detections)
+draw_rectangle(img, detections)
