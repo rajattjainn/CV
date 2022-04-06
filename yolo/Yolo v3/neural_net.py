@@ -4,7 +4,8 @@ from torch import nn as nn
 import torchvision.ops as tvo
 import torchvision.transforms as transforms
 from PIL import Image, ImageDraw
-
+import os
+from torchvision.utils import save_image
 
 LAYER_TYPE = "layer_type"
 
@@ -63,21 +64,21 @@ def create_module_list(layer_dic_list):
                 padding = 0
             
             try:
-                batch_normlize = layer["batch_normalize"]
+                batch_normalize = layer["batch_normalize"]
                 bias = False
             except:
                 bias = True
-                batch_normlize = 0
+                batch_normalize = 0
             
             conv_module = nn.Conv2d(prev_filter, out_filters, kernel, stride = stride, padding = padding, bias = bias)
             module.add_module("conv_{0}".format(index), conv_module)
 
-            if batch_normlize:
+            if batch_normalize:
                 batch_norm_module = nn.BatchNorm2d(out_filters)
                 module.add_module("batchnorm_{0}".format(index), batch_norm_module)
             
             if activation == "leaky":
-                activation_module = nn.LeakyReLU()
+                activation_module = nn.LeakyReLU(0.1)
                 module.add_module("leaky_{0}".format(index), activation_module)
 
         if layer[LAYER_TYPE] == "shortcut":
@@ -149,11 +150,12 @@ def transform_yolo_output(input, anchors, height):
     anc_tensor = anc_tensor/stride
 
     img = input[0]
-
-    img = img.transpose(0,2).contiguous()
-    img = img.view(grid_size * grid_size, -1)
+    
+    img = img.view(-1, grid_size * grid_size)
+    img = img.transpose(0,1).contiguous()
     img = img.view(grid_size * grid_size * 3, -1)
     
+
     # perform yolo calculations
     img[:, 0] = torch.sigmoid(img[:, 0])
     img[:, 1] = torch.sigmoid(img[:, 1])
@@ -168,7 +170,7 @@ def transform_yolo_output(input, anchors, height):
         
     # multiply the coordinates by stride 
     img[:, :4] = img[:, :4] * stride
-
+    
     return img.unsqueeze(0)
 
 def get_anchors(anchor_string, mask):
@@ -194,6 +196,11 @@ def get_anchors(anchor_string, mask):
     return anchor_list
 
 def draw_rectangle(image_path, detections):
+    # image = Image.open(image_path)
+    # tform = transforms.Compose([transforms.PILToTensor(), transforms.Resize((416, 416))])
+    # img_tensor = tform(image)
+    # source_img = transforms.ToPILImage()(img_tensor.squeeze_(0))
+
     source_img = Image.open(image_path).convert("RGB")
     draw = ImageDraw.Draw(source_img)
     for detection in detections:
@@ -216,13 +223,15 @@ class Yolo3(nn.Module):
         self.layer_dic_list = parse_cfg(cfg_file)
         self.net_info, self.module_list = create_module_list(self.layer_dic_list)
 
+
     def forward(self, input):
         layer_dic_list = self.layer_dic_list[1:]
         module_list = self.module_list
         feature_map_list = []
         dtctn_exists = False
+        
         for index, layer_dic in enumerate(layer_dic_list):
-
+            
             if layer_dic[LAYER_TYPE] == "convolutional":
                 output = module_list[index](input)
 
@@ -255,7 +264,8 @@ class Yolo3(nn.Module):
                     absolute_route_layer = index + layer
                     output = feature_map_list[absolute_route_layer]
                     
-            elif layer_dic[LAYER_TYPE] == "yolo": 
+            elif layer_dic[LAYER_TYPE] == "yolo":    
+
                 height = int(self.net_info["height"])
                 anchor_str = layer_dic["anchors"].split(",")
                 mask = layer_dic["mask"].split(",")
@@ -271,7 +281,7 @@ class Yolo3(nn.Module):
                     dtctn_exists = True
             feature_map_list.append(output)
             input = output
-
+            
         return detection_tensor
 
     # The load_weights functions has been copied as it is from Ayoosh kathuria's blog.
@@ -371,12 +381,13 @@ def analyze_transactions(img, cnf_thres = 0.5, iou_thres = 0.4):
         return 0
 
     # convert bx, by, bw, bh into bx1, by1, bx2, by2
-    boxes = img[:,:4]
-    boxes[:,0] = img[:, 0] - img[:,2]/2
-    boxes[:,1] = img[:, 1] - img[:,3]/2
-    boxes[:,2] = img[:, 0] + img[:,2]/2
-    boxes[:,3] = img[:, 1] + img[:,3]/2
-    img[:, :4] = boxes
+    boxes = img.new(img.shape)
+    boxes[:,0] = img[:, 0] - img[:, 2]/2
+    boxes[:,1] = img[:, 1] - img[:, 3]/2
+    boxes[:,2] = img[:, 0] + img[:, 2]/2
+    boxes[:,3] = img[:, 1] + img[:, 3]/2
+    img[:, :4] = boxes[:,:4]
+    
 
     max_values, class_values = torch.max(img[:,5:], 1)
 
@@ -385,16 +396,16 @@ def analyze_transactions(img, cnf_thres = 0.5, iou_thres = 0.4):
     ## at this point, the img tensor has 7 values in each row: bx1, by1, bx2, by2, confidence, cls_confidence, class
     dtctn_tnsr_exsts = False
     classes = torch.unique(img[:, 6])
-
     for cls in classes:
         # retrieve all the rows which correspond to class cls
         cls_tensor = img[torch.where(img[:, 6] == cls)]
 
         # sort cls_tensor according to max confidence
         cls_tensor = cls_tensor[cls_tensor[:,5].sort(descending = True)[1]]
-            
+           
         # box_iou takes tensors which have only 4 columns
         iou_tensor = tvo.box_iou(cls_tensor[:,:4], cls_tensor[:,:4])
+    
         rejected_indices = []
         detected_indices = []
         #TODO: have a helper function to generate an image with all bbs drawn at this stage
@@ -405,28 +416,38 @@ def analyze_transactions(img, cnf_thres = 0.5, iou_thres = 0.4):
             rejected_indices.extend(exceeding_thres_tensor.tolist())
             detected_indices.append(row)
         
+        print ("+++++++++++++")
+        print ("final size")
+        print (cls_tensor[detected_indices].size())
+        print (cls_tensor[detected_indices])
+        print ("+++++++++++++")
+        
         if dtctn_tnsr_exsts:
-            print ("dtctn tnsr exists")
-            print (detection_tensor.size())
-            print (cls_tensor[detected_indices].size())
             detection_tensor = torch.cat((detection_tensor, cls_tensor[detected_indices]), 0)
                 
         else:
             detection_tensor = cls_tensor[detected_indices]
             dtctn_tnsr_exsts = True
-            print ("dtctn tnsr does not exist")
-            print (detection_tensor.size())
     try:
         return detection_tensor
     except:
         return 0
 
 img = "images/dog-cycle-car.png"
-img_tensor = image_to_tensor(img)
+# img_tensor = image_to_tensor(img)
+# img_tensor = torch.load("absolute_input.pt")
+img_tensor = torch.load("ayoosh_input.pt")
 
 net = Yolo3("assets/config.cfg")
 net.load_weights("assets/yolov3.weights")
-detections = net(img_tensor)
-detections = analyze_transactions(detections, cnf_thres = 0.5, iou_thres = 0.4)
-# print (detections.size())
-draw_rectangle(img, detections)
+net.eval()
+with torch.no_grad():
+    detections = net(img_tensor)
+    torch.save(detections, os.path.join("/Users/Jain/code/learnML/Yolo v3/YOLO_v3_tutorial_from_scratch", "self_detection1.pt"))
+    print ("self detection 1")
+    print (detections.size())
+    detections = analyze_transactions(detections, cnf_thres = 0.5, iou_thres = 0.4)
+    print ("self detection 2")
+    print (detections.size())
+    torch.save(detections, os.path.join("/Users/Jain/code/learnML/Yolo v3/YOLO_v3_tutorial_from_scratch", "self_detection2.pt"))
+    draw_rectangle(img, detections)
