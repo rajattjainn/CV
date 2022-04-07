@@ -5,6 +5,8 @@ import torchvision.ops as tvo
 import torchvision.transforms as transforms
 from PIL import Image, ImageDraw
 import random
+import os
+import argparse
 
 LAYER_TYPE = "layer_type"
 
@@ -205,6 +207,7 @@ def get_anchors(anchor_string, mask):
     return anchor_list
 
 def draw_rectangle(image_path, detections, classes):
+    file_name = os.path.basename(image_path)
     source_img = Image.open(image_path).convert("RGB")
     width, height = source_img.size
     
@@ -215,15 +218,18 @@ def draw_rectangle(image_path, detections, classes):
     draw = ImageDraw.Draw(source_img)
     for detection in detections:
         # randomly pick a BB color
-        bb_color = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)])][0]
-        draw.rectangle(((detection[0].item() * x_scale, detection[1].item() * y_scale), 
-            (detection[2].item() * x_scale, detection[3].item() * y_scale)), outline = bb_color, fill=None)
-            
-        text_color = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)])][0]
-        draw.text((detection[0].item(), detection[1].item()), classes[int(detection[6].item())] + 
-            ", Confidence: " + "{0:.2f}".format((detection[5].item())), fill = text_color)
+        rand_color = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)])][0]
 
-    source_img.save("det/dog.jpg", "JPEG")
+        draw.rectangle(((detection[0].item() * x_scale, detection[1].item() * y_scale), 
+            (detection[2].item() * x_scale, detection[3].item() * y_scale)), outline = rand_color, fill=None)
+
+        draw.text((detection[0].item(), detection[1].item()), classes[int(detection[6].item())] + 
+            ", Confidence: " + "{0:.2f}".format((detection[5].item())), fill = rand_color)
+    
+    if not os.path.exists('det'):
+        os.makedirs('det')
+    det_path = os.path.join("det", file_name)
+    source_img.save(det_path, "JPEG")
 
 def image_to_tensor(image_path):
     image = Image.open(image_path)
@@ -432,12 +438,6 @@ def analyze_transactions(img, cnf_thres = 0.5, iou_thres = 0.4):
             rejected_indices.extend(exceeding_thres_tensor.tolist())
             detected_indices.append(row)
         
-        print ("+++++++++++++")
-        print ("final size")
-        print (cls_tensor[detected_indices].size())
-        print (cls_tensor[detected_indices])
-        print ("+++++++++++++")
-        
         if dtctn_tnsr_exsts:
             detection_tensor = torch.cat((detection_tensor, cls_tensor[detected_indices]), 0)
                 
@@ -449,14 +449,28 @@ def analyze_transactions(img, cnf_thres = 0.5, iou_thres = 0.4):
     except:
         return 0
 
-img = "images/dog-cycle-car.png"
-img_tensor = image_to_tensor(img)
 
-net = Yolo3("assets/config.cfg")
-net.load_weights("assets/yolov3.weights")
-net.eval()
-with torch.no_grad():
-    detections = net(img_tensor)
-    detections = analyze_transactions(detections, cnf_thres = 0.5, iou_thres = 0.4)
-    classes = read_classes("assets/coco.names")
-    draw_rectangle(img, detections, classes)
+def detect(folder, image):
+    img = os.path.join(folder, image)
+    img_tensor = image_to_tensor(img)
+
+    net = Yolo3("assets/config.cfg")
+    net.load_weights("assets/yolov3.weights")
+    net.eval()
+    with torch.no_grad():
+        detections = net(img_tensor)
+        detections = analyze_transactions(detections, cnf_thres = 0.5, iou_thres = 0.4)
+        classes = read_classes("assets/coco.names")
+        draw_rectangle(img, detections, classes)
+
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--folder", default = "images", type=str)
+parser.add_argument("--name", default = "eagle.jpg", type=str)
+args = parser.parse_args()
+image_folder = args.folder
+image = args.name
+
+detect(image_folder, image)
+
