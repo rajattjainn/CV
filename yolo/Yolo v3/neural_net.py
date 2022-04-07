@@ -434,20 +434,12 @@ def analyze_transactions(img, cnf_thres = 0.5, iou_thres = 0.4):
         return 0
 
 img = "images/dog-cycle-car.png"
-# img_tensor = image_to_tensor(img)
-# img_tensor = torch.load("absolute_input.pt")
-img_tensor = torch.load("ayoosh_input.pt")
+img_tensor = image_to_tensor(img)
 
 net = Yolo3("assets/config.cfg")
 net.load_weights("assets/yolov3.weights")
 net.eval()
 with torch.no_grad():
     detections = net(img_tensor)
-    torch.save(detections, os.path.join("/Users/Jain/code/learnML/Yolo v3/YOLO_v3_tutorial_from_scratch", "self_detection1.pt"))
-    print ("self detection 1")
-    print (detections.size())
     detections = analyze_transactions(detections, cnf_thres = 0.5, iou_thres = 0.4)
-    print ("self detection 2")
-    print (detections.size())
-    torch.save(detections, os.path.join("/Users/Jain/code/learnML/Yolo v3/YOLO_v3_tutorial_from_scratch", "self_detection2.pt"))
     draw_rectangle(img, detections)
