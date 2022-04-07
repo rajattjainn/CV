@@ -4,14 +4,23 @@ from torch import nn as nn
 import torchvision.ops as tvo
 import torchvision.transforms as transforms
 from PIL import Image, ImageDraw
-import os
-from torchvision.utils import save_image
+import random
 
 LAYER_TYPE = "layer_type"
 
 class EmptyLayer(nn.Module):
     def __init__(self) -> None:
         super().__init__()
+
+def read_classes(classes_file):
+    """
+    Parses the config file. 
+    @param cfg_file: the file containing configuration for the neural net
+    @output: a list of dictionaries, each dictionary corresponding to one "module" in the cfg file
+    """
+    with open (classes_file) as file:
+        lines = [line.lstrip().rstrip() for line in file.readlines()]
+    return lines
 
 def parse_cfg(cfg_file):
     """
@@ -195,17 +204,24 @@ def get_anchors(anchor_string, mask):
 
     return anchor_list
 
-def draw_rectangle(image_path, detections):
-    # image = Image.open(image_path)
-    # tform = transforms.Compose([transforms.PILToTensor(), transforms.Resize((416, 416))])
-    # img_tensor = tform(image)
-    # source_img = transforms.ToPILImage()(img_tensor.squeeze_(0))
-
+def draw_rectangle(image_path, detections, classes):
     source_img = Image.open(image_path).convert("RGB")
+    width, height = source_img.size
+    
+    # Find the ratio between original width/height and width/height of the input image
+    x_scale = width/416
+    y_scale = height/416
+
     draw = ImageDraw.Draw(source_img)
     for detection in detections:
-        draw.rectangle(((detection[0].item(), detection[1].item()), (detection[2].item(), detection[3].item())), outline = "#FF0000", fill=None)
-        draw.text((detection[0].item(), detection[1].item()), "class: " + str(detection[6].item()) + ", confidence: " + str(detection[5].item()))
+        # randomly pick a BB color
+        bb_color = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)])][0]
+        draw.rectangle(((detection[0].item() * x_scale, detection[1].item() * y_scale), 
+            (detection[2].item() * x_scale, detection[3].item() * y_scale)), outline = bb_color, fill=None)
+            
+        text_color = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)])][0]
+        draw.text((detection[0].item(), detection[1].item()), classes[int(detection[6].item())] + 
+            ", Confidence: " + "{0:.2f}".format((detection[5].item())), fill = text_color)
 
     source_img.save("det/dog.jpg", "JPEG")
 
@@ -442,4 +458,5 @@ net.eval()
 with torch.no_grad():
     detections = net(img_tensor)
     detections = analyze_transactions(detections, cnf_thres = 0.5, iou_thres = 0.4)
-    draw_rectangle(img, detections)
+    classes = read_classes("assets/coco.names")
+    draw_rectangle(img, detections, classes)
