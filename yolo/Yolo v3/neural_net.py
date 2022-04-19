@@ -192,6 +192,7 @@ def perform_math_on_yolo_output(input, anchors, height):
     return input
     
 def transform_yolo_output(input, anchors, height):
+    #TODO: Delete this function
     print ("in transform yolo output")
     print (input.size())
     input = input.float()
@@ -287,9 +288,6 @@ class Yolo3(nn.Module):
         module_list = self.module_list
         feature_map_list = []
         dtctn_exists = False
-        print ("\nin yolo forward")
-        print ("input size")
-        print (input.size())
         for index, layer_dic in enumerate(layer_dic_list):
             if layer_dic[LAYER_TYPE] == "convolutional":
                 output = module_list[index](input)
@@ -333,7 +331,6 @@ class Yolo3(nn.Module):
                 
                 # output = transform_yolo_output(input, anchors, height)
                 output = perform_math_on_yolo_output(input, anchors, height)
-                
                 if dtctn_exists:
                     detection_tensor = torch.cat((detection_tensor, output), 1)
                 else:
