@@ -258,7 +258,6 @@ def draw_rectangle(image_path, detections, classes):
     # Find the ratio between original width/height and width/height of the input image
     x_scale = width/416
     y_scale = height/416
-
     draw = ImageDraw.Draw(source_img)
     for detection in detections:
         # randomly pick a BB color
@@ -274,7 +273,6 @@ def draw_rectangle(image_path, detections, classes):
         os.makedirs('det')
     det_path = os.path.join("det", file_name)
     source_img.save(det_path, "JPEG")
-
 
 class Yolo3(nn.Module):
     def __init__(self, cfg_file):
@@ -430,7 +428,6 @@ class Yolo3(nn.Module):
                 conv.weight.data.copy_(conv_weights)
 
 def analyze_transactions(img, cnf_thres = 0.5, iou_thres = 0.4):
-    img = img[0]
     img = img[img[:, 4] > cnf_thres]
     
     # no detections
