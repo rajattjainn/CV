@@ -147,10 +147,53 @@ def get_mesh_grid(grid_size):
     # the offsets, the tensors need to converted to column tensors after repeat
     x_cord_tensor = x.contiguous().view(-1,1).repeat(1,3).view(-1,1)
     y_cord_tensor = y.contiguous().view(-1,1).repeat(1,3).view(-1,1)
-    
     return x_cord_tensor, y_cord_tensor
 
+def perform_math_on_yolo_output(input, anchors, height):
+    """
+    This function performs the various mathematical operations to be performed on the output of 
+    a yolo layer as defined in Yolov3 paper defines. These operations help in getting the correct 
+    value for coordinates, objectness score, and class confidence scores.
+    
+    The operations are performing sigmoid function on x and y coordinates and adjusting the coordinates
+    to their correct position in the output grid; sigmoid on objectness score; and sigmoid on class 
+    confidence scores. Also, multiply the anchor width and height to natural exponent of tw and th 
+    values recieved from the network output.
+    
+    """
+    input = input.float()
+    batch_size = input.size(0)
+    grid_size = input.size(2)
+    stride = height // input.size(3)
+
+    anc_tensor = torch.tensor(anchors)
+    anc_tensor = anc_tensor.repeat(grid_size*grid_size,1)
+    anc_tensor = anc_tensor/stride
+    
+    input = input.view(batch_size, -1, grid_size * grid_size)
+    input = input.transpose(1,2).contiguous()
+    input = input.view(batch_size, grid_size * grid_size * 3, -1)
+
+    # perform yolo calculations
+    input[:, :, 0] = torch.sigmoid(input[:, :, 0])
+    input[:, :, 1] = torch.sigmoid(input[:, :, 1])
+    input[:, :, 4] = torch.sigmoid(input[:, :, 4])
+    input[:, :, 5:] = torch.sigmoid(input[:, :, 5:]) 
+    input[:, :,2] = anc_tensor[:,0] * torch.exp(input[:, :, 2])
+    input[:, :,3] = anc_tensor[:,1] * torch.exp(input[:, :, 3])
+
+    x_cord_tensor, y_cord_tensor = get_mesh_grid(grid_size)
+    
+    input[:, :, 0] = input[:, :, 0] + x_cord_tensor.squeeze(1)
+    input[:, :, 1] = input[:, :, 1] + y_cord_tensor.squeeze(1)
+    # multiply the coordinates by stride 
+    input[:, :, :4] = input[:, :, :4] * stride
+    
+    return input
+    
 def transform_yolo_output(input, anchors, height):
+    print ("in transform yolo output")
+    print (input.size())
     input = input.float()
     grid_size = input[0].size(1)
     stride = height // input[0].size(2)
@@ -160,7 +203,8 @@ def transform_yolo_output(input, anchors, height):
     anc_tensor = anc_tensor/stride
 
     img = input[0]
-    
+    print ("image size")
+    print (img.size())
     img = img.view(-1, grid_size * grid_size)
     img = img.transpose(0,1).contiguous()
     img = img.view(grid_size * grid_size * 3, -1)
@@ -243,9 +287,10 @@ class Yolo3(nn.Module):
         module_list = self.module_list
         feature_map_list = []
         dtctn_exists = False
-        
+        print ("\nin yolo forward")
+        print ("input size")
+        print (input.size())
         for index, layer_dic in enumerate(layer_dic_list):
-            
             if layer_dic[LAYER_TYPE] == "convolutional":
                 output = module_list[index](input)
 
@@ -286,7 +331,8 @@ class Yolo3(nn.Module):
 
                 anchors = get_anchors(anchor_str, mask)
                 
-                output = transform_yolo_output(input, anchors, height)
+                # output = transform_yolo_output(input, anchors, height)
+                output = perform_math_on_yolo_output(input, anchors, height)
                 
                 if dtctn_exists:
                     detection_tensor = torch.cat((detection_tensor, output), 1)
