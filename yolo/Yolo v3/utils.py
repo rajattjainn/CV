@@ -24,9 +24,9 @@ def image_to_tensor(image_path):
     img_tensor = img_tensor.unsqueeze(0)
     return img_tensor
 
-def get_dataloader(image_folder, label_folder):
+def get_dataloader(image_folder, label_folder, shuffle = False):
     image_transform = get_image_transform()
     train_data = datasets.ObjectDataSet(image_folder, label_folder_path = label_folder, transform=image_transform)
-    train_dataloader = DataLoader(train_data, batch_size = 8, shuffle = True)
+    train_dataloader = DataLoader(train_data, batch_size = 8, shuffle = shuffle)
     return train_dataloader
 

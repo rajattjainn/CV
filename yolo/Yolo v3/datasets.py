@@ -5,7 +5,7 @@ import os
 from PIL import Image
 
 class ObjectDataSet(Dataset):
-    def __init__(self, image_folder_path, label_folder_path = None, transform = None) -> None:
+    def __init__(self, image_folder_path, label_folder_path = None, transform = None, shuffle = False) -> None:
         super().__init__()
         self.image_folder = image_folder_path
         self.label_folder = label_folder_path
