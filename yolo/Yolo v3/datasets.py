@@ -24,7 +24,7 @@ class ObjectDataSet(Dataset):
         if self.label_folder:
             label_path = os.path.join(self.label_folder, self.image_objects[idx].split(".")[0] + ".txt")
             with open(label_path) as f:
-                # don't split the target information into various lines. 
+                # Don't split the target information into various lines. 
                 # Different targets files contain different number of targets. 
                 # The loader expects all targets of same size. 
                 # Targets could be split in the code downstream.

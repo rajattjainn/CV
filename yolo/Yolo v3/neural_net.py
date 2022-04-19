@@ -2,11 +2,10 @@ import numpy as np
 import torch
 from torch import nn as nn
 import torchvision.ops as tvo
-import torchvision.transforms as transforms
 from PIL import Image, ImageDraw
 import random
 import os
-import argparse
+
 
 LAYER_TYPE = "layer_type"
 
@@ -231,13 +230,6 @@ def draw_rectangle(image_path, detections, classes):
     det_path = os.path.join("det", file_name)
     source_img.save(det_path, "JPEG")
 
-def image_to_tensor(image_path):
-    image = Image.open(image_path)
-    tform = transforms.Compose([transforms.PILToTensor(), transforms.Resize((416, 416))])
-    img_tensor = tform(image)
-    img_tensor = img_tensor/255
-    img_tensor = img_tensor.unsqueeze(0)
-    return img_tensor
 
 class Yolo3(nn.Module):
     def __init__(self, cfg_file):
@@ -448,29 +440,3 @@ def analyze_transactions(img, cnf_thres = 0.5, iou_thres = 0.4):
         return detection_tensor
     except:
         return 0
-
-
-def detect(folder, image):
-    img = os.path.join(folder, image)
-    img_tensor = image_to_tensor(img)
-
-    net = Yolo3("assets/config.cfg")
-    net.load_weights("assets/yolov3.weights")
-    net.eval()
-    with torch.no_grad():
-        detections = net(img_tensor)
-        detections = analyze_transactions(detections, cnf_thres = 0.5, iou_thres = 0.4)
-        classes = read_classes("assets/coco.names")
-        draw_rectangle(img, detections, classes)
-
-
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--folder", default = "images", type=str)
-parser.add_argument("--name", default = "eagle.jpg", type=str)
-args = parser.parse_args()
-image_folder = args.folder
-image = args.name
-
-detect(image_folder, image)
-
