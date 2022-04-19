@@ -28,10 +28,10 @@ def detect(image_dir_path):
         det = neural_net.analyze_transactions(det, cnf_thres = 0.5, iou_thres = 0.4)
         if isinstance(det, int):
             continue
-        classes = neural_net.read_classes("assets/coco.names")
+        classes = utils.read_classes("assets/coco.names")
         
         img = os.path.join(image_dir_path, images[det_ind])
-        neural_net.draw_rectangle(img, det, classes)
+        utils.draw_rectangle(img, det, classes)
 
 
 

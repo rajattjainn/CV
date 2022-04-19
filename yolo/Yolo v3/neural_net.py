@@ -2,52 +2,13 @@ import numpy as np
 import torch
 from torch import nn as nn
 import torchvision.ops as tvo
-from PIL import Image, ImageDraw
-import random
-import os
 
+import utils
 
-LAYER_TYPE = "layer_type"
 
 class EmptyLayer(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-
-def read_classes(classes_file):
-    """
-    Parses the config file. 
-    @param cfg_file: the file containing configuration for the neural net
-    @output: a list of dictionaries, each dictionary corresponding to one "module" in the cfg file
-    """
-    with open (classes_file) as file:
-        lines = [line.lstrip().rstrip() for line in file.readlines()]
-    return lines
-
-def parse_cfg(cfg_file):
-    """
-    Parses the config file. 
-    @param cfg_file: the file containing configuration for the neural net
-    @output: a list of dictionaries, each dictionary corresponding to one "module" in the cfg file
-    """
-    with open (cfg_file) as file:
-        lines = [line.lstrip().rstrip() for line in file.readlines()]
-    
-    layer_dic_list = []
-    layer_dic = {}
-    for line in lines:
-        if len(line) != 0 and not line.startswith("#"):
-            if line.startswith("["):
-                if len(layer_dic) != 0:
-                    layer_dic_list.append(layer_dic)
-                    layer_dic = {}
-                layer_dic[LAYER_TYPE] = line[1:-1]
-            else:
-                key_value_pair = line.split("=")
-                layer_dic[key_value_pair[0].rstrip()] = key_value_pair[1].lstrip()
-    
-    layer_dic_list.append(layer_dic)
-
-    return layer_dic_list
 
 def create_module_list(layer_dic_list):
     # ModuleList is being used to enable transfer learning we might want to work on later.
@@ -60,7 +21,7 @@ def create_module_list(layer_dic_list):
 
     for index, layer in enumerate(layer_dic_list):
         module = nn.Sequential()
-        if layer[LAYER_TYPE] == "convolutional":
+        if layer[utils.LAYER_TYPE] == "convolutional":
             out_filters = int(layer["filters"])
             kernel = int(layer["size"])
             stride = int(layer["stride"])
@@ -91,16 +52,16 @@ def create_module_list(layer_dic_list):
                 activation_module = nn.LeakyReLU(0.1)
                 module.add_module("leaky_{0}".format(index), activation_module)
 
-        if layer[LAYER_TYPE] == "shortcut":
+        if layer[utils.LAYER_TYPE] == "shortcut":
             shortcut_module = EmptyLayer()
             module.add_module("shortcut_{0}".format(index), shortcut_module)
 
-        if layer[LAYER_TYPE] == "upsample":
+        if layer[utils.LAYER_TYPE] == "upsample":
             stride = layer["stride"]
             upsample_module = nn.Upsample(scale_factor = stride, mode="bilinear")
             module.add_module("upsample_{0}".format(index), upsample_module)
 
-        if layer[LAYER_TYPE] == "route":
+        if layer[utils.LAYER_TYPE] == "route":
             route_module = EmptyLayer()
             module.add_module("route_{0}".format(index), route_module)
             prev_layers = layer["layers"]
@@ -121,7 +82,7 @@ def create_module_list(layer_dic_list):
                 prev_layers = int(prev_layers)
                 out_filters = filter_list[prev_layers]
 
-        if layer[LAYER_TYPE] == "yolo":
+        if layer[utils.LAYER_TYPE] == "yolo":
             yolo_module = EmptyLayer()
             module.add_module("yolo_{0}".format(index), yolo_module)
 
@@ -131,23 +92,6 @@ def create_module_list(layer_dic_list):
 
     
     return net_info, module_list
-
-def get_mesh_grid(grid_size):
-    """
-    Returns 2 tensors which can be added to 0th and 1st column of the img tensor
-    """
-    x_range = torch.arange(0, grid_size)
-    y_range = torch.arange(0, grid_size)
-
-    # intentionally y,x. in our operation, we'll traverse across the x axis first and then across y-axis.
-    y,x = torch.meshgrid(x_range, y_range)
-
-    # repeat the thrice because each yolo output cell contains data for 3 bounding boxes. 
-    # 0th and 1st column in the img tensor represents the cx and cy values In order to add
-    # the offsets, the tensors need to converted to column tensors after repeat
-    x_cord_tensor = x.contiguous().view(-1,1).repeat(1,3).view(-1,1)
-    y_cord_tensor = y.contiguous().view(-1,1).repeat(1,3).view(-1,1)
-    return x_cord_tensor, y_cord_tensor
 
 def perform_math_on_yolo_output(input, anchors, height):
     """
@@ -182,7 +126,7 @@ def perform_math_on_yolo_output(input, anchors, height):
     input[:, :,2] = anc_tensor[:,0] * torch.exp(input[:, :, 2])
     input[:, :,3] = anc_tensor[:,1] * torch.exp(input[:, :, 3])
 
-    x_cord_tensor, y_cord_tensor = get_mesh_grid(grid_size)
+    x_cord_tensor, y_cord_tensor = utils.get_mesh_grid(grid_size)
     
     input[:, :, 0] = input[:, :, 0] + x_cord_tensor.squeeze(1)
     input[:, :, 1] = input[:, :, 1] + y_cord_tensor.squeeze(1)
@@ -190,94 +134,11 @@ def perform_math_on_yolo_output(input, anchors, height):
     input[:, :, :4] = input[:, :, :4] * stride
     
     return input
-    
-def transform_yolo_output(input, anchors, height):
-    #TODO: Delete this function
-    print ("in transform yolo output")
-    print (input.size())
-    input = input.float()
-    grid_size = input[0].size(1)
-    stride = height // input[0].size(2)
-    
-    anc_tensor = torch.tensor(anchors)
-    anc_tensor = anc_tensor.repeat(grid_size*grid_size,1)
-    anc_tensor = anc_tensor/stride
-
-    img = input[0]
-    print ("image size")
-    print (img.size())
-    img = img.view(-1, grid_size * grid_size)
-    img = img.transpose(0,1).contiguous()
-    img = img.view(grid_size * grid_size * 3, -1)
-    
-
-    # perform yolo calculations
-    img[:, 0] = torch.sigmoid(img[:, 0])
-    img[:, 1] = torch.sigmoid(img[:, 1])
-    img[:, 4] = torch.sigmoid(img[:, 4])
-    img[:, 5:] = torch.sigmoid(img[:, 5:]) 
-    img[:,2] = anc_tensor[:,0] * torch.exp(img[:, 2])
-    img[:,3] = anc_tensor[:,1] * torch.exp(img[:, 3])
-
-    x_cord_tensor, y_cord_tensor = get_mesh_grid(grid_size)
-    img[:, 0] = img[:, 0] + x_cord_tensor.squeeze(1)
-    img[:, 1] = img[:, 1] + y_cord_tensor.squeeze(1)
-        
-    # multiply the coordinates by stride 
-    img[:, :4] = img[:, :4] * stride
-    
-    return img.unsqueeze(0)
-
-def get_anchors(anchor_string, mask):
-    """
-    @param anchor_string: a list of strings, every 2 items denoting an anchor 
-    @param mask: once anchor_string has been converted into a list of tuples, with 2 elemets in each tuple, mask defines the indexes of items in the above list that have to be used for anchors   
-    @return anchor_list: a list of int tuples, each tuple defining the anchor
-
-    """
-    #TODO: Rewrite this function
-    anc_list = []
-    i = 0
-
-    while i < len(anchor_string) - 1:
-        anch = (int(anchor_string[i]), int(anchor_string[i+1]))
-        anc_list.append(anch)
-        i = i + 2
-    anchor_list = []
-
-    for item in range (len(mask)):
-        anchor_list.append(anc_list[int(mask[item])])
-
-    return anchor_list
-
-def draw_rectangle(image_path, detections, classes):
-    file_name = os.path.basename(image_path)
-    source_img = Image.open(image_path).convert("RGB")
-    width, height = source_img.size
-    
-    # Find the ratio between original width/height and width/height of the input image
-    x_scale = width/416
-    y_scale = height/416
-    draw = ImageDraw.Draw(source_img)
-    for detection in detections:
-        # randomly pick a BB color
-        rand_color = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)])][0]
-
-        draw.rectangle(((detection[0].item() * x_scale, detection[1].item() * y_scale), 
-            (detection[2].item() * x_scale, detection[3].item() * y_scale)), outline = rand_color, fill=None)
-
-        draw.text((detection[0].item(), detection[1].item()), classes[int(detection[6].item())] + 
-            ", Confidence: " + "{0:.2f}".format((detection[5].item())), fill = rand_color)
-    
-    if not os.path.exists('det'):
-        os.makedirs('det')
-    det_path = os.path.join("det", file_name)
-    source_img.save(det_path, "JPEG")
 
 class Yolo3(nn.Module):
     def __init__(self, cfg_file):
         super().__init__()
-        self.layer_dic_list = parse_cfg(cfg_file)
+        self.layer_dic_list = utils.parse_cfg(cfg_file)
         self.net_info, self.module_list = create_module_list(self.layer_dic_list)
 
 
@@ -287,18 +148,18 @@ class Yolo3(nn.Module):
         feature_map_list = []
         dtctn_exists = False
         for index, layer_dic in enumerate(layer_dic_list):
-            if layer_dic[LAYER_TYPE] == "convolutional":
+            if layer_dic[utils.LAYER_TYPE] == "convolutional":
                 output = module_list[index](input)
 
-            elif layer_dic[LAYER_TYPE] == "shortcut":
+            elif layer_dic[utils.LAYER_TYPE] == "shortcut":
                 from_layer = int(layer_dic["from"])
                 abs_shrtct_layer = index + from_layer
                 output = feature_map_list[index - 1] + feature_map_list[abs_shrtct_layer]
 
-            elif layer_dic[LAYER_TYPE] == "upsample":
+            elif layer_dic[utils.LAYER_TYPE] == "upsample":
                 output = module_list[index](input)
 
-            elif layer_dic[LAYER_TYPE] == "route":
+            elif layer_dic[utils.LAYER_TYPE] == "route":
                 layers = layer_dic["layers"]
                 
                 if "," in layers:
@@ -319,13 +180,13 @@ class Yolo3(nn.Module):
                     absolute_route_layer = index + layer
                     output = feature_map_list[absolute_route_layer]
                     
-            elif layer_dic[LAYER_TYPE] == "yolo":    
+            elif layer_dic[utils.LAYER_TYPE] == "yolo":    
 
                 height = int(self.net_info["height"])
                 anchor_str = layer_dic["anchors"].split(",")
                 mask = layer_dic["mask"].split(",")
 
-                anchors = get_anchors(anchor_str, mask)
+                anchors = utils.get_anchors(anchor_str, mask)
                 
                 # output = transform_yolo_output(input, anchors, height)
                 output = perform_math_on_yolo_output(input, anchors, height)
@@ -357,7 +218,7 @@ class Yolo3(nn.Module):
             
         ptr = 0
         for i in range(len(self.module_list)):
-            module_type = self.layer_dic_list[i + 1][LAYER_TYPE]
+            module_type = self.layer_dic_list[i + 1][utils.LAYER_TYPE]
         
             #If module_type is convolutional load weights
             #Otherwise ignore.
