@@ -15,7 +15,11 @@ eval_image_path = "/Users/Jain/code/cloned/ultralytics/coco128/eval/images/train
 eval_loader = utils.get_dataloader(eval_image_path, eval_label_path)
 
 log_file = "TrainingLog_" + datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S') + ".txt"
-    
+
+def save_model_weights(epoch, model):
+    torch.save(model.state_dict(), "model_weights_" + str(epoch) + ".pth")
+
+
 def train():
     EPOCHS = 5
     EPOCHS = 1
@@ -79,7 +83,6 @@ def train():
             f.write("\n")
             f.write("End Time: " + datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S'))
             f.write ("\n\n")
-            
 
-            
+        save_model_weights(epoch, net)
 train()
