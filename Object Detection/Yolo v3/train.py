@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import torch
 import torch.optim as optim
 
@@ -12,7 +14,7 @@ eval_label_path = "/Users/Jain/code/cloned/ultralytics/coco128/eval/labels/train
 eval_image_path = "/Users/Jain/code/cloned/ultralytics/coco128/eval/images/train2017"
 eval_loader = utils.get_dataloader(eval_image_path, eval_label_path)
 
-
+log_file = "TrainingLog_" + datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S') + ".txt"
     
 def train():
     EPOCHS = 5
@@ -26,10 +28,15 @@ def train():
                         dampening=0, weight_decay=.0005*batch_size)
 
     for epoch in range (EPOCHS):
+        with open(log_file, "a") as f:
+            f.write("Epoch: " + str (epoch))
+            f.write("\n")
+            f.write("Start Time: " + datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S'))
+            print ("\n")
+
         prdctn_exists = False
         target_labels = []
         net.train()
-        print ("\n\nEpoch: " + str(epoch))
 
         optimizer.zero_grad()
         for _, (features, labels) in enumerate(train_loader):
@@ -43,8 +50,36 @@ def train():
 
         # predicted_tensor = torch.load("detection.pt")
         loss = utils.calculate_loss(predicted_tensor, target_labels)
-
         loss.backwards()
         optimizer.step()
 
+        epoch_train_loss = loss.item()
+
+        net.eval()
+        with torch.no_grad:
+            for _, (features, labels) in enumerate(eval_loader):
+                detections = net(features)
+                if prdctn_exists:
+                    predicted_tensor = torch.cat((predicted_tensor, detections), 0)
+                else:
+                    predicted_tensor = detections
+                    prdctn_exists = True
+                target_labels.extend(list(labels))
+            
+            loss = utils.calculate_loss(predicted_tensor, target_labels)
+            epoch_eval_loss = loss.item()
+        
+        with open(log_file, "a") as f:
+            f.write("\n")
+            f.write("Train Loss: " + str (epoch_train_loss))
+            f.write("\n")
+            f.write("Eval Loss: " + str (epoch_eval_loss))
+            f.write ("\n")
+            f.write("Epoch: " + str (epoch))
+            f.write("\n")
+            f.write("End Time: " + datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S'))
+            f.write ("\n\n")
+            
+
+            
 train()

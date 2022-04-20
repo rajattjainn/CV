@@ -1,7 +1,6 @@
-import torch
-from torchvision.io import read_image
-from torch.utils.data import Dataset
 import os
+
+from torch.utils.data import Dataset
 from PIL import Image
 
 class ObjectDataSet(Dataset):
