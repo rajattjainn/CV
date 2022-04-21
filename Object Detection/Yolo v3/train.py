@@ -21,8 +21,7 @@ def save_model_weights(epoch, model):
 
 
 def train():
-    EPOCHS = 5
-    EPOCHS = 1
+    EPOCHS = 10
     net = neural_net.Yolo3("assets/config.cfg")
     net.load_weights("assets/yolov3.weights")
 
@@ -54,7 +53,7 @@ def train():
 
         # predicted_tensor = torch.load("detection.pt")
         loss = utils.calculate_loss(predicted_tensor, target_labels)
-        loss.backwards()
+        loss.backward()
         optimizer.step()
 
         epoch_train_loss = loss.item()

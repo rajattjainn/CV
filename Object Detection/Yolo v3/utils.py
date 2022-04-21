@@ -37,7 +37,7 @@ def image_to_tensor(image_path):
 def get_dataloader(image_folder, label_folder, shuffle = False):
     image_transform = get_image_transform()
     train_data = datasets.ObjectDataSet(image_folder, label_folder_path = label_folder, transform=image_transform)
-    train_dataloader = DataLoader(train_data, batch_size = 8, shuffle = shuffle)
+    train_dataloader = DataLoader(train_data, batch_size = 2, shuffle = shuffle)
     return train_dataloader
 
 def read_classes(classes_file):
@@ -151,7 +151,7 @@ def individual_loss(predicted_tensor, target_labels):
     
     # Calculate iou between the target tensor and predicted tensor. This would be a "m x n" matrix,
     # where "m" is the number of targets and "n" is the number of predictions by the network.
-    predicted_tensor_box = predicted_tensor[:, 1:5] / 416 # the predicted_tensor has already been scaled to actual dimensions
+    predicted_tensor_box = predicted_tensor[:, 0:4] / 416 # the predicted_tensor has already been scaled to actual dimensions
     target_tensor_box = target_tensor[:, 1:5]
     iou_tensor = tvo.box_iou(target_tensor_box, predicted_tensor_box)
 

@@ -197,7 +197,8 @@ class Yolo3(nn.Module):
                     dtctn_exists = True
             feature_map_list.append(output)
             input = output
-            
+        
+        detection_tensor = torch.nan_to_num(detection_tensor)
         return detection_tensor
 
     # The load_weights functions has been copied as it is from Ayoosh kathuria's blog.
@@ -288,7 +289,7 @@ class Yolo3(nn.Module):
                 conv_weights = conv_weights.view_as(conv.weight.data)
                 conv.weight.data.copy_(conv_weights)
 
-def analyze_transactions(img, cnf_thres = 0.5, iou_thres = 0.4):
+def analyze_detections(img, cnf_thres = 0.5, iou_thres = 0.4):
     img = img[img[:, 4] > cnf_thres]
     
     # no detections

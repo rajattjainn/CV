@@ -25,7 +25,7 @@ def detect(image_dir_path):
     images =  [f for f in os.listdir(image_dir_path) if f.endswith(('.jpg', '.jpeg', 'png'))]
     for det_ind in range(len(detection_tensor)):
         det = detection_tensor[det_ind]
-        det = neural_net.analyze_transactions(det, cnf_thres = 0.5, iou_thres = 0.4)
+        det = neural_net.analyze_detections(det, cnf_thres = 0.5, iou_thres = 0.4)
         if isinstance(det, int):
             continue
         classes = utils.read_classes("assets/coco.names")
