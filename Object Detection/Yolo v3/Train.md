@@ -5,6 +5,8 @@ We use "transfer learning" in order to enable the neural network to detect objec
 
 1. Data preparation
 2. Understanding Loss for Yolo v3
+3. Implementing Loss function
+4. Results
 
 ### Understanding the Data
 The training data is split into two parts - image data and label data. Each type of data belonging to a separate folder (i.e. images and labels). For each image file, we have a corresponding label file.
@@ -31,3 +33,9 @@ After calculating the individual losses, we sum them up; the summation constitut
 **Further explanation for Confidence Loss:** I had some problem while implementing the confidence loss. My confusion was that the total number of predictions would be much greater than the actual ground truth boxes. So how will this loss be calculated ? <br>
 The predicted tensor has a confidence value for each prediction, the 5th column for each row. We also have a IoU tensor which captures the IoU value between the predicted and the ground truth boxes. If we look closely, the IoU tensor serves as a proxy for the ground truth boxes - it has high IoU value for those predicted boxes which are actual ground truth boxes. <br> 
 What we do is that we filter out this column vector with a threshold value - all the values above the threshold are true predictions and all those that are below serve as false predictions. Now we calculate the loss function between this and the prediction tensor (without the iou calculated over it). 
+
+### Implementing Loss function
+The functions to calculate loss can be found in [utils.py](utils.py) class:  calculate_loss and individual_loss. Both the functions are self-explanatory and have in-line comments added.
+
+### Results
+[Update April 22]: Loss isn't decreasing after the first epoch. Need to dig deeper

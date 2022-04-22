@@ -35,7 +35,6 @@ def train():
             f.write("Epoch: " + str (epoch))
             f.write("\n")
             f.write("Start Time: " + datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S'))
-            print ("\n")
 
         prdctn_exists = False
         target_labels = []
@@ -62,7 +61,7 @@ def train():
         eval_prdctn_exists = False
         eval_target_labels = []
         net.eval()
-        with torch.no_grad:
+        with torch.no_grad():
             for _, (eval_features, eval_labels) in enumerate(eval_loader):
                 eval_detections = net(eval_features)
                 if eval_prdctn_exists:

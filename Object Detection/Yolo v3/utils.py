@@ -171,6 +171,7 @@ def individual_loss(predicted_tensor, target_labels):
     predictedgt_cls_tensor, _ = torch.max(predicted_tensor[best_indices, 5:], 1)
     class_loss = nn.BCEWithLogitsLoss(reduction="sum")(predictedgt_cls_tensor, target_tensor[:, 0])
 
+    #TODO: Experiment with what I have written in the train.md file
     # Retrieve the max of iou values between each predicted tensor and all target boxes.
     # Use these values and confidence value predicted by the network to calculate confidence loss
     prediction_gt_iou_tensor, _ = torch.max(iou_tensor, 0)
