@@ -38,4 +38,4 @@ What we do is that we filter out this column vector with a threshold value - all
 The functions to calculate loss can be found in [utils.py](utils.py) class:  calculate_loss and individual_loss. Both the functions are self-explanatory and have in-line comments added.
 
 ### Results
-[Update April 22]: Loss isn't decreasing after the first epoch. Need to dig deeper
+[Status April 22]: Loss isn't decreasing after the first epoch. Need to dig deeper
