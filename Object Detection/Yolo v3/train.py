@@ -57,20 +57,23 @@ def train():
         optimizer.step()
 
         epoch_train_loss = loss.item()
-
+        
+        
+        eval_prdctn_exists = False
+        eval_target_labels = []
         net.eval()
         with torch.no_grad:
-            for _, (features, labels) in enumerate(eval_loader):
-                detections = net(features)
-                if prdctn_exists:
-                    predicted_tensor = torch.cat((predicted_tensor, detections), 0)
+            for _, (eval_features, eval_labels) in enumerate(eval_loader):
+                eval_detections = net(eval_features)
+                if eval_prdctn_exists:
+                    eval_predicted_tensor = torch.cat((eval_predicted_tensor, eval_detections), 0)
                 else:
-                    predicted_tensor = detections
-                    prdctn_exists = True
-                target_labels.extend(list(labels))
+                    eval_predicted_tensor = eval_detections
+                    eval_prdctn_exists = True
+                eval_target_labels.extend(list(eval_labels))
             
-            loss = utils.calculate_loss(predicted_tensor, target_labels)
-            epoch_eval_loss = loss.item()
+            eval_loss = utils.calculate_loss(eval_predicted_tensor, eval_target_labels)
+            epoch_eval_loss = eval_loss.item()
         
         with open(log_file, "a") as f:
             f.write("\n")
