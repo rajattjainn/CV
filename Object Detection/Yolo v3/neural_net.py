@@ -11,6 +11,13 @@ class EmptyLayer(nn.Module):
         super().__init__()
 
 def create_module_list(layer_dic_list):
+    """
+    Read the dictionary containing information of various layers and convert the dic into 
+    a Module List, each item being a module in the neural network. 
+    @param layer_dic_list: dictionary of layers
+    @returns net_info: network's meta information
+    @returns module_list: the module list 
+    """
     # ModuleList is being used to enable transfer learning we might want to work on later.
     module_list = nn.ModuleList()
     net_info = layer_dic_list[0]
@@ -143,10 +150,18 @@ class Yolo3(nn.Module):
 
 
     def forward(self, input):
+        # net_info layer not required 
         layer_dic_list = self.layer_dic_list[1:]
         module_list = self.module_list
+        
+        # a list to hold various feature maps. 
+        # This will be required during route and shortcut layer when we'll 
+        # need to retrieve and concatenate feature maps from previous layers.
         feature_map_list = []
+
+        # Flag to tell us if we have an output from the yolo layer or not.
         dtctn_exists = False
+        
         for index, layer_dic in enumerate(layer_dic_list):
             if layer_dic[utils.LAYER_TYPE] == "convolutional":
                 output = module_list[index](input)
@@ -162,6 +177,7 @@ class Yolo3(nn.Module):
             elif layer_dic[utils.LAYER_TYPE] == "route":
                 layers = layer_dic["layers"]
                 
+                # if the output is route layer depends on two layers 
                 if "," in layers:
                     layers = layers.split(",")
                     layer1 = int(layers[0])
@@ -175,6 +191,8 @@ class Yolo3(nn.Module):
                     out1 = feature_map_list[layer1]
                     out2 = feature_map_list[layer2]
                     output = torch.cat((out1, out2), 1)
+                
+                # if the output is route layer depends on only one layer
                 else:
                     layer = int(layers)
                     absolute_route_layer = index + layer
@@ -188,7 +206,6 @@ class Yolo3(nn.Module):
 
                 anchors = utils.get_anchors(anchor_str, mask)
                 
-                # output = transform_yolo_output(input, anchors, height)
                 output = perform_math_on_yolo_output(input, anchors, height)
                 if dtctn_exists:
                     detection_tensor = torch.cat((detection_tensor, output), 1)
@@ -198,6 +215,7 @@ class Yolo3(nn.Module):
             feature_map_list.append(output)
             input = output
         
+        # TODO: Check this implementation
         detection_tensor = torch.nan_to_num(detection_tensor)
         return detection_tensor
 
@@ -289,7 +307,12 @@ class Yolo3(nn.Module):
                 conv_weights = conv_weights.view_as(conv.weight.data)
                 conv.weight.data.copy_(conv_weights)
 
+
 def analyze_detections(img, cnf_thres = 0.5, iou_thres = 0.4):
+    """
+    Analyse all the detections given by the yolo layer. Filter out the predictions
+    which are below a certain threshold (cnf_thres). Apply NMS using iou_thres.  
+    """
     img = img[img[:, 4] > cnf_thres]
     
     # no detections
@@ -304,12 +327,12 @@ def analyze_detections(img, cnf_thres = 0.5, iou_thres = 0.4):
     boxes[:,3] = img[:, 1] + img[:, 3]/2
     img[:, :4] = boxes[:,:4]
     
-
+    # get the max class confidence and corresponding class
     max_values, class_values = torch.max(img[:,5:], 1)
 
+    # create a tensor that has 7 elements: bx1, by1, bx2, by2, conf, class_conf, class
     img = torch.cat((img[:, :5], max_values.float().unsqueeze(1), class_values.float().unsqueeze(1)), 1)
     
-    ## at this point, the img tensor has 7 values in each row: bx1, by1, bx2, by2, confidence, cls_confidence, class
     dtctn_tnsr_exsts = False
     classes = torch.unique(img[:, 6])
     for cls in classes:
@@ -324,12 +347,19 @@ def analyze_detections(img, cnf_thres = 0.5, iou_thres = 0.4):
     
         rejected_indices = []
         detected_indices = []
+
         #TODO: have a helper function to generate an image with all bbs drawn at this stage
         for row in range(iou_tensor.size(0)):
             if row in rejected_indices:
                 continue
+            # get all the rows which have iou greater than the threshold. the row
+            # itself would have an IOU of 1 
             exceeding_thres_tensor = torch.where(iou_tensor[row] > iou_thres)[0]
+            
+            # all the rows except the current row are discarded owing to NMS
             rejected_indices.extend(exceeding_thres_tensor.tolist())
+
+            # the current row is added to the detected tensor list
             detected_indices.append(row)
         
         if dtctn_tnsr_exsts:

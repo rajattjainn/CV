@@ -34,7 +34,15 @@ def image_to_tensor(image_path):
     img_tensor = img_tensor.unsqueeze(0)
     return img_tensor
 
-def get_dataloader(image_folder, label_folder, shuffle = False):
+def get_dataloader(image_folder, label_folder = None, shuffle = False):
+    """
+    Creates a dataloader for the input images and (optional) labels. 
+    @params image_folder: the image folder in which all the images reside.
+    @params label_folder: the label folder in which all the corresponding labels reside.
+    @params shuffle: If we want the input data to be shuffled or not.
+
+    @returns train_dataloader: the dataloader corresponding to input data
+    """
     image_transform = get_image_transform()
     train_data = datasets.ObjectDataSet(image_folder, label_folder_path = label_folder, transform=image_transform)
     train_dataloader = DataLoader(train_data, batch_size = 2, shuffle = shuffle)
@@ -51,6 +59,12 @@ def read_classes(classes_file):
     return lines
 
 def draw_rectangle(image_path, detections, classes):
+    """
+    Draw rectangle around the object detected. 
+    
+    @param image_path: the path of the image
+    @param detections: detection coordinates of various objects found in the image
+    """
     file_name = os.path.basename(image_path)
     source_img = Image.open(image_path).convert("RGB")
     width, height = source_img.size

@@ -4,6 +4,9 @@ from torch.utils.data import Dataset
 from PIL import Image
 
 class ObjectDataSet(Dataset):
+    """
+    A custom Dataset class to read input images and (optional) labels.
+    """
     def __init__(self, image_folder_path, label_folder_path = None, transform = None, shuffle = False) -> None:
         super().__init__()
         self.image_folder = image_folder_path
