@@ -1,5 +1,10 @@
 ### ToDo
 
+- How to decide the size of machine ? 
+- The train operation fails when training on 14 GB machine, Coco128 dataset.
+    - Separate operations of getitem from detections: create a separate flow and check if memory is increasing. 
+    - Apply the 2-3 approaches found while searching
+- Handle Grayscale Image
 - Loss is not decreasing as of now. Look for solutions/alternatives and have learning graphs for the metrics
     - mAP
 - Get away from 416, have a global variable
