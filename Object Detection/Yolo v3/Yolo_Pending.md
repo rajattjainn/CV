@@ -4,6 +4,7 @@
 - The train operation fails when training on 14 GB machine, Coco128 dataset.
     - Separate operations of getitem from detections: create a separate flow and check if memory is increasing. 
     - Apply the 2-3 approaches found while searching
+- Handle the cases when there is GT Box while training
 - Handle Grayscale Image
 - Loss is not decreasing as of now. Look for solutions/alternatives and have learning graphs for the metrics
     - mAP
