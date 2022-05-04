@@ -19,7 +19,6 @@ log_file = "TrainingLog_" + datetime.now().astimezone().strftime('%Y-%m-%d %H:%M
 def save_model_weights(epoch, model):
     torch.save(model.state_dict(), "model_weights_" + str(epoch) + ".pth")
 
-
 def train():
     EPOCHS = 10
     net = neural_net.Yolo3("assets/config.cfg")
@@ -29,61 +28,53 @@ def train():
     optimizer = optim.SGD(net.parameters(), 
                         lr=0.001/batch_size, momentum=0.9, 
                         dampening=0, weight_decay=.0005*batch_size)
+    
+    train_loss = []
+    eval_loss = []
 
     for epoch in range (EPOCHS):
         with open(log_file, "a") as f:
+            f.write("Start Time: " + datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S'))
+            f.write("\n")
             f.write("Epoch: " + str (epoch))
             f.write("\n")
-            f.write("Start Time: " + datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S'))
-
-        prdctn_exists = False
-        target_labels = []
+            
         net.train()
-
-        optimizer.zero_grad()
+       
+        train_running_loss = 0
         for _, (features, labels) in enumerate(train_loader):
-                detections = net(features)
-                if prdctn_exists:
-                    predicted_tensor = torch.cat((predicted_tensor, detections), 0)
-                else:
-                    predicted_tensor = detections
-                    prdctn_exists = True
-                target_labels.extend(list(labels))
+            optimizer.zero_grad()
 
-        # predicted_tensor = torch.load("detection.pt")
-        loss = utils.calculate_loss(predicted_tensor, target_labels)
-        loss.backward()
-        optimizer.step()
+            detections = net(features)
+            
+            loss = utils.calculate_loss(detections, labels)
+            loss.backward()
+            optimizer.step()
 
-        epoch_train_loss = loss.item()
+            train_running_loss += loss.item()        
         
+        train_epch_loss = train_running_loss/len(train_loader)    
+        with open(log_file, "a") as f:
+            f.write("Epoch {}, Train Loss: {}".format(epoch, train_epch_loss))
+        train_loss.append(train_epch_loss)
         
-        eval_prdctn_exists = False
-        eval_target_labels = []
         net.eval()
+        eval_running_loss = 0
         with torch.no_grad():
             for _, (eval_features, eval_labels) in enumerate(eval_loader):
                 eval_detections = net(eval_features)
-                if eval_prdctn_exists:
-                    eval_predicted_tensor = torch.cat((eval_predicted_tensor, eval_detections), 0)
-                else:
-                    eval_predicted_tensor = eval_detections
-                    eval_prdctn_exists = True
-                eval_target_labels.extend(list(eval_labels))
+                loss = utils.calculate_loss(eval_detections, eval_labels)
+                eval_running_loss += loss.item()
             
-            eval_loss = utils.calculate_loss(eval_predicted_tensor, eval_target_labels)
-            epoch_eval_loss = eval_loss.item()
-        
+        eval_epch_loss = eval_running_loss/len(eval_loader)    
         with open(log_file, "a") as f:
-            f.write("\n")
-            f.write("Train Loss: " + str (epoch_train_loss))
-            f.write("\n")
-            f.write("Eval Loss: " + str (epoch_eval_loss))
-            f.write ("\n")
-            f.write("Epoch: " + str (epoch))
-            f.write("\n")
+            f.write("Epoch {}, Eval Loss: {}".format(epoch, eval_epch_loss))
+        eval_loss.append(eval_epch_loss)
+  
+        with open(log_file, "a") as f:
             f.write("End Time: " + datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S'))
             f.write ("\n\n")
 
         save_model_weights(epoch, net)
+
 train()
