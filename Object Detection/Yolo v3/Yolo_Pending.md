@@ -1,9 +1,7 @@
 ### ToDo
 
+#### Pending
 - How to decide the size of machine ? 
-- The train operation fails when training on 14 GB machine, Coco128 dataset.
-    - Separate operations of getitem from detections: create a separate flow and check if memory is increasing. 
-    - Apply the 2-3 approaches found while searching
 - Handle the cases when there is GT Box while training
 - Handle Grayscale Image
 - Loss is not decreasing as of now. Look for solutions/alternatives and have learning graphs for the metrics
@@ -16,3 +14,8 @@
 - Specify the path of images in a config file
 - Train the network with a different set of classes 
 - Check #TODO blocks
+- Data Augmentation
+
+#### Done
+- The train operation fails when training on 14 GB machine, Coco128 dataset. 
+    - <span style="color:green">Gradient was consuming all the memory. Calculated loss at each mini-batch and called zero_grad at the start of every mini-batch iteration.</span>

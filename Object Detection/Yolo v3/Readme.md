@@ -4,7 +4,7 @@ Yolo is a family of Object Detection Algorithms and Yolo v3 is one of the most s
 ### Understanding the Project
 1. A guide to understand can be found here: [Yolo Theory](Yolo_Theory.md).
 2. The algorithm and detection code can found in [detect.py](detect.py), [neural_net.py](neural_net.py), and [utils.py](utils.py). I was planning to write a code walkthrough guide but later decided that my time would be better spent if I document the code properly.
-3. A guide to understand teh training mechanism can be found here: [Yolo Train](Yolo_Train.md).
+3. A guide to understand the training mechanism can be found here: [Yolo Train](Yolo_Train.md).
 
 ### Running the Project
 1. The [environment.yml](environment.yml) file has all the dependencies for this project. It is adviced to create a conda/miniconda environment, install all the dependencies.
