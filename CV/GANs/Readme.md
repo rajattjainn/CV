@@ -1,0 +1,1 @@
+This repository contains the implementation of DCGAN in Pytorch. While trying to understand GANs, I took help from the [Pytorch tutorial](https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html) on GANs.
