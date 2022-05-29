@@ -4,7 +4,21 @@ from torch import nn as nn
 # https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html
 
 class DCGANDiscriminator(nn.Module):
+    """
+    A Discriminator class for the type DCGAN.
+    """
     def __init__(self, ngpu, op_chnls, ftr_map_size_dc, bias = False):
+        """
+        init function to create a DCGAN discriminator object.
+
+        This function initializes a Sequential which is used during the forward function.
+
+        Keyword Arguments:
+        ngpu: Number of GPUs available
+        op_chnls: number of input image channels
+        ftr_map_size_dc: depth of the discriminator input feature map
+        bias: bias value for batch norm
+        """
         super(DCGANDiscriminator, self).__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
@@ -28,4 +42,13 @@ class DCGANDiscriminator(nn.Module):
         )
 
     def forward(self, input):
+        """
+        Forward function of the DCGAN Discriminator object
+
+        Keyword Arguments:
+        input: the input image which has to identified as original or fake
+
+        Returns:
+        A binary value whether the image is real or fake.
+        """
         return self.main(input)
