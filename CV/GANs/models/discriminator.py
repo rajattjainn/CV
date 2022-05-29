@@ -1,12 +1,14 @@
 from torch import nn as nn
 
+# Following DCGANDiscriminator is a fork from the Pytorch tutorial:
+# https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html
 
 class DCGANDiscriminator(nn.Module):
-    def __init__(self, ngpu, img_chnls, ftr_map_size_dc, bias = False):
+    def __init__(self, ngpu, op_chnls, ftr_map_size_dc, bias = False):
         super(DCGANDiscriminator, self).__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
-            nn.Conv2d(img_chnls, ftr_map_size_dc, 4, 2, 1, bias=bias),
+            nn.Conv2d(op_chnls, ftr_map_size_dc, 4, 2, 1, bias=bias),
             nn.LeakyReLU(0.2, inplace=True),
 
             nn.Conv2d(ftr_map_size_dc, ftr_map_size_dc * 2, 4, 2, 1, bias=bias),
