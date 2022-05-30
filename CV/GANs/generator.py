@@ -21,7 +21,7 @@ class DCGANGenerator(nn.Module):
         op_chnls: number of output image channels
         bias: bias value for batch norm
         """
-        super(DCGANGenerator).__init__()
+        super(DCGANGenerator, self).__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
             nn.ConvTranspose2d(latent_vector_size, ftr_map_size_gn * 8, 4, 1, 0, bias = bias),
