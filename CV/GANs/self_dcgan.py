@@ -6,9 +6,9 @@ from torchvision.utils import make_grid
 import matplotlib.pyplot as plt
 import numpy as np
 
-import discriminator as dsc
-import generator as gnr
-import data_utils
+from models import discriminator as dsc
+from models import generator as gnr
+from utils import data_utils, loss_utils
 
 ngpu = torch.cuda.device_count()
 op_chnls = 3
@@ -31,11 +31,12 @@ netD = dsc.DCGANDiscriminator(op_chnls, ftr_map_size_dc)
 netG = gnr.DCGANGenerator(latent_vector_size, ftr_map_size_gn, op_chnls)
 netD.to(device)
 netG.to(device)
+
 if ngpu>1:
     netD = nn.DataParallel(netD)
     netG = nn.DataParallel(netG)
 
-criterion = nn.BCELoss()
+criterion = loss_utils.get_bce_loss()
 optimizerD = optim.Adam(netD.parameters(), lr = lr, betas = (beta1, beta2))
 optimizerG = optim.Adam(netG.parameters(), lr = lr, betas = (beta1, beta2))
 
