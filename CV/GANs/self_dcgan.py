@@ -14,8 +14,8 @@ op_chnls = 3
 ftr_map_size_dc = 64
 ftr_map_size_gn = 64
 latent_vector_size = 100
-lr = 0.001
-beta1 = 0.9
+lr = 0.0002
+beta1 = 0.5
 beta2 = 0.999
 num_epochs = 5
 
