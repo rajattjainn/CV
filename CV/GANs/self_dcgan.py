@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torchvision.utils import make_grid
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -9,7 +10,7 @@ import generator as gnr
 import data_utils
 
 ngpu = 1
-op_chnls = 3 
+op_chnls = 3
 ftr_map_size_dc = 64
 ftr_map_size_gn = 64
 latent_vector_size = 100
@@ -133,3 +134,21 @@ plt.ylabel("Loss")
 plt.xlabel("Iteration")
 plt.legend()
 plt.savefig("loss_iter.png")
+
+# save generated images after 500 iterations to disk
+gen_image_tensor = torch.cat(gen_image_list, 0)
+imgs_in_row = (gen_image_list[0].size(0))
+grid = make_grid(gen_image_tensor, nrow=imgs_in_row, padding = 5)
+print (gen_image_tensor.size())
+print (grid.size())
+f = plt.figure(clear=True)
+plt.imshow(grid.permute(1,2,0))
+plt.axis("off")
+plt.savefig("generated_images.png")
+
+# save last batch of generated images to disk
+f = plt.figure(clear=True)
+grid = make_grid(gen_image_list[len(gen_image_list)-1], padding = 5)
+plt.imshow(grid.permute(1,2,0))
+plt.axis("off")
+plt.savefig("last_generated.png")
