@@ -1,3 +1,4 @@
+from datetime import datetime
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -35,6 +36,8 @@ fixed_noise = torch.randn(64, latent_vector_size, 1, 1)
 
 real_label_identifier = 1
 fake_label_identifier = 0
+
+log_file = "TrainingLog_" + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ".txt"
 
 dataloader = data_utils.get_datloader(data_dir, image_size, batch_size, True, num_workers)
 G_losses = []
@@ -103,9 +106,15 @@ for epoch in range (num_epochs):
             G_losses.append(errG.item())
             D_losses.append(errD.item())
 
-            print ("Epoch {}/{}, Iteration: {}/{} \tLoss_G: {lg:.4f} \tLoss_D: {ld:.4f}".
-                    format(epoch+1, num_epochs, i+1, len(dataloader), lg=errG.item(), ld=errD.item()))
 
+            log_text = ("Epoch {cur_epch}/{epc}, Iteration: {cur_itr}/{itrs} \tLoss_G: {lg:.4f}\tLoss_D: {ld:.4f}".format
+                (cur_epch=epoch+1, epc=num_epochs, cur_itr=i+1, itrs=len(dataloader), lg=errG.item(), ld=errD.item()))
+            print (log_text)
+
+            with open(log_file, "a") as f:
+                f.write(log_text)
+                f.write("\n")
+            
         if (i % 500 == 0):
             gen_image = netG(fixed_noise)
             gen_image_list.append(gen_image)
