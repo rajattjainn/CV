@@ -7,20 +7,18 @@ class DCGANDiscriminator(nn.Module):
     """
     A Discriminator class for the type DCGAN.
     """
-    def __init__(self, ngpu, op_chnls, ftr_map_size_dc, bias = False):
+    def __init__(self, op_chnls, ftr_map_size_dc, bias = False):
         """
         init function to create a DCGAN discriminator object.
 
         This function initializes a Sequential which is used during the forward function.
 
         Keyword Arguments:
-        ngpu: Number of GPUs available
         op_chnls: number of input image channels
         ftr_map_size_dc: depth of the discriminator input feature map
         bias: bias value for batch norm
         """
         super(DCGANDiscriminator, self).__init__()
-        self.ngpu = ngpu
         self.main = nn.Sequential(
             nn.Conv2d(op_chnls, ftr_map_size_dc, 4, 2, 1, bias=bias),
             nn.LeakyReLU(0.2, inplace=True),

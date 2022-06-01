@@ -8,21 +8,19 @@ class DCGANGenerator(nn.Module):
     A Generator class for the type DCGAN.
     """
 
-    def __init__(self, ngpu, latent_vector_size, ftr_map_size_gn, op_chnls, bias=False) -> None:
+    def __init__(self, latent_vector_size, ftr_map_size_gn, op_chnls, bias=False) -> None:
         """
         Init function to create a DCGAN generator object.
 
         This function initializes a Sequential which is used during the forward function.
 
         Keyword Arguments:
-        ngpu: Number of GPUs available
         latent_vector_size: the size of the vector from which the fake image will be generated
         ftr_map_size_gn: depth of the generator output feature map
         op_chnls: number of output image channels
         bias: bias value for batch norm
         """
         super(DCGANGenerator, self).__init__()
-        self.ngpu = ngpu
         self.main = nn.Sequential(
             nn.ConvTranspose2d(latent_vector_size, ftr_map_size_gn * 8, 4, 1, 0, bias = bias),
             nn.BatchNorm2d(ftr_map_size_gn*8),
