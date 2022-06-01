@@ -10,7 +10,7 @@ import discriminator as dsc
 import generator as gnr
 import data_utils
 
-ngpu = 1
+ngpu = torch.cuda.device_count()
 op_chnls = 3
 ftr_map_size_dc = 64
 ftr_map_size_gn = 64
@@ -25,8 +25,15 @@ image_size = 64
 batch_size = 128
 num_workers = 0
 
-netD = dsc.DCGANDiscriminator(ngpu, op_chnls, ftr_map_size_dc)
-netG = gnr.DCGANGenerator(ngpu, latent_vector_size, ftr_map_size_gn, op_chnls)
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+netD = dsc.DCGANDiscriminator(op_chnls, ftr_map_size_dc)
+netG = gnr.DCGANGenerator(latent_vector_size, ftr_map_size_gn, op_chnls)
+netD.to(device)
+netG.to(device)
+if ngpu>1:
+    netD = nn.DataParallel(netD)
+    netG = nn.DataParallel(netG)
 
 criterion = nn.BCELoss()
 optimizerD = optim.Adam(netD.parameters(), lr = lr, betas = (beta1, beta2))
@@ -53,7 +60,7 @@ for epoch in range (num_epochs):
 
         # getitem in ImageFolder returns 2 objects - image tensor and labels. 
         # Retrieve image tensor
-        imgs = data[0]
+        imgs = data[0].to(device)
         batch_size = len(imgs)
         
         # create real_label and fake_label tensors to be used for calculating loss 
