@@ -41,8 +41,6 @@ dataloader = data_utils.get_datloader(dataroot, image_size, batch_size, True, wo
 device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu >0) else "cpu")
 
 real_batch = next(iter(dataloader))
-print (type(real_batch))
-print (len(real_batch))
 plt.figure(figsize=(8,8))
 plt.axis("off")
 plt.title("Training Images")
@@ -65,8 +63,8 @@ criterion = loss_utils.get_bce_loss()
 
 fixed_noise = torch.randn(64, latent_vector_size, 1, 1, device = device)
 
-real_label = 1
-fake_label = 0
+real_label_identifier = 1
+fake_label_identifier = 0
 
 optimizerD = optim.Adam(netD.parameters(), lr = lr, betas = (beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr = lr, betas = (beta1, 0.999))
@@ -81,17 +79,17 @@ for epoch in range(num_epochs):
     for i, data in enumerate(dataloader, 0):
         netD.zero_grad()
 
-        real_cpu = data[0].to(device)
-        b_size = real_cpu.size(0)
-        real_label = torch.full((b_size,), real_label, dtype = torch.float, device = device)
-        output = netD(real_cpu).view(-1)
+        imgs = data[0].to(device)
+        b_size = imgs.size(0)
+        real_label = torch.full((b_size,), real_label_identifier, dtype = torch.float, device = device)
+        output = netD(imgs).view(-1)
         errD_real = criterion(output, real_label)
         errD_real.backward()
         D_x = output.mean().item()
 
         noise = torch.randn(b_size, latent_vector_size, 1, 1, device=device)
         fake = netG(noise)
-        fake_label = torch.full((b_size,), fake_label, dtype = torch.float, device = device)
+        fake_label = torch.full((b_size,), fake_label_identifier, dtype = torch.float, device = device)
         output = netD(fake.detach()).view(-1)
         errD_fake = criterion(output, fake_label)
         errD_fake.backward()
@@ -121,7 +119,6 @@ for epoch in range(num_epochs):
             with torch.no_grad():
                 fake = netG(fixed_noise).detach().cpu()
             img_list.append(vutils.make_grid(fake, padding = 2, normalize=True))
-        
         iters += 1
 
 plt.figure(figsize=(10,5))
