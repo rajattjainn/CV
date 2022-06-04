@@ -40,7 +40,7 @@ criterion = loss_utils.get_bce_loss()
 optimizerD = optim.Adam(netD.parameters(), lr = lr, betas = (beta1, beta2))
 optimizerG = optim.Adam(netG.parameters(), lr = lr, betas = (beta1, beta2))
 
-fixed_noise = torch.randn(64, latent_vector_size, 1, 1)
+fixed_noise = torch.randn(64, latent_vector_size, 1, 1).to(device)
 
 real_label_identifier = 1
 fake_label_identifier = 0
@@ -71,8 +71,8 @@ for epoch in range (num_epochs):
         batch_size = len(imgs)
         
         # create real_label and fake_label tensors to be used for calculating loss 
-        real_label = torch.full((batch_size, 1), real_label_identifier, dtype=torch.float32)
-        fake_label = torch.full((batch_size, 1), fake_label_identifier, dtype=torch.float32)
+        real_label = torch.full((batch_size, 1), real_label_identifier, dtype=torch.float32).to(device)
+        fake_label = torch.full((batch_size, 1), fake_label_identifier, dtype=torch.float32).to(device)
 
 
         ##################################
@@ -86,7 +86,7 @@ for epoch in range (num_epochs):
 
         # Train discriminator on fake data
         # Generate fake data first
-        noise = torch.randn(batch_size, latent_vector_size, 1, 1, dtype=torch.float32)
+        noise = torch.randn(batch_size, latent_vector_size, 1, 1, dtype=torch.float32).to(device)
         fake_imgs = netG(noise)
         output = netD(fake_imgs.detach()).view(-1).unsqueeze(1)
         errD_fake = criterion(output, fake_label)
@@ -134,7 +134,7 @@ for epoch in range (num_epochs):
             
         if (i % 500 == 0):
             gen_image = netG(fixed_noise)
-            gen_image_list.append(gen_image)
+            gen_image_list.append(gen_image.detach()[0:8, :, :, :])
         print ("\n")
 
     netD_checkpoint = "checkpoint_netD_" + str(epoch) + ".pt"
@@ -163,7 +163,7 @@ plt.savefig("loss_iter.png")
 
 # save generated images after 500 iterations to disk
 gen_image_tensor = torch.cat(gen_image_list, 0)
-grid = make_grid(gen_image_tensor[0:8], padding = 5, normalize=True)
+grid = make_grid(gen_image_tensor, padding = 5, normalize=True)
 f = plt.figure(clear=True)
 plt.imshow(grid.permute(1,2,0))
 plt.axis("off")
