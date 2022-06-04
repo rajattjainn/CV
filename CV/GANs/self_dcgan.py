@@ -154,10 +154,7 @@ plt.savefig("loss_iter.png")
 
 # save generated images after 500 iterations to disk
 gen_image_tensor = torch.cat(gen_image_list, 0)
-imgs_in_row = (gen_image_list[0].size(0))
-grid = make_grid(gen_image_tensor, nrow=imgs_in_row, padding = 5, normalize=True)
-print (gen_image_tensor.size())
-print (grid.size())
+grid = make_grid(gen_image_tensor[0:8], padding = 5, normalize=True)
 f = plt.figure(clear=True)
 plt.imshow(grid.permute(1,2,0))
 plt.axis("off")
