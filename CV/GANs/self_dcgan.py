@@ -46,6 +46,12 @@ real_label_identifier = 1
 fake_label_identifier = 0
 
 log_file = "TrainingLog_" + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ".txt"
+with open(log_file, "a") as f:
+    f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    f.write("\n")
+    f.write("Starting operation")
+    f.write("\n")
+    f.write("\n")
 
 dataloader = data_utils.get_datloader(data_dir, image_size, batch_size, True, num_workers)
 G_losses = []
@@ -120,7 +126,10 @@ for epoch in range (num_epochs):
             print (log_text)
 
             with open(log_file, "a") as f:
+                f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                f.write("\n")
                 f.write(log_text)
+                f.write("\n")
                 f.write("\n")
             
         if (i % 500 == 0):
@@ -166,3 +175,10 @@ grid = make_grid(gen_image_list[len(gen_image_list)-1], padding = 5, normalize=T
 plt.imshow(grid.permute(1,2,0))
 plt.axis("off")
 plt.savefig("last_generated.png")
+
+with open(log_file, "a") as f:
+    f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    f.write("\n")
+    f.write("Ending operation")
+    f.write("\n")
+    f.write("\n")
