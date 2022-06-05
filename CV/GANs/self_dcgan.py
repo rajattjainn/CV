@@ -20,7 +20,7 @@ beta1 = 0.5
 beta2 = 0.999
 num_epochs = 5
 
-data_dir = "data/celeba"
+data_dir = "data"
 image_size = 64
 batch_size = 128
 num_workers = 0
@@ -57,7 +57,7 @@ dataloader = data_utils.get_datloader(data_dir, image_size, batch_size, True, nu
 G_losses = []
 D_losses = []
 gen_image_list = []
-total_iters = num_epochs * (len(dataloader) * batch_size)
+total_iters = num_epochs * len(dataloader)
 
 for epoch in range (num_epochs):
     for i, data in enumerate(dataloader, 0):
@@ -142,7 +142,6 @@ for epoch in range (num_epochs):
     torch.save(netD.state_dict(), netD_checkpoint)
     torch.save(netG.state_dict(), netG_checkpoint)
 
-
 torch.save(netD.state_dict(), "netD_final.pt")
 torch.save(netG.state_dict(), "netG_final.pt")
 
@@ -163,7 +162,7 @@ plt.savefig("loss_iter.png")
 
 # save generated images after 500 iterations to disk
 gen_image_tensor = torch.cat(gen_image_list, 0)
-grid = make_grid(gen_image_tensor, padding = 5, normalize=True)
+grid = make_grid(gen_image_tensor.detach().cpu().clone(), padding = 5, normalize=True)
 f = plt.figure(clear=True)
 plt.imshow(grid.permute(1,2,0))
 plt.axis("off")
@@ -171,7 +170,8 @@ plt.savefig("generated_images.png")
 
 # save last batch of generated images to disk
 f = plt.figure(clear=True)
-grid = make_grid(gen_image_list[len(gen_image_list)-1], padding = 5, normalize=True)
+grid = make_grid(gen_image_list[len(gen_image_list)-1].detach().cpu().clone(), 
+    padding = 5, normalize=True)
 plt.imshow(grid.permute(1,2,0))
 plt.axis("off")
 plt.savefig("last_generated.png")
