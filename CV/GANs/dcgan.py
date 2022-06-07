@@ -1,131 +1,183 @@
-from locale import normalize
+from datetime import datetime
 import torch
-import torchvision.utils as vutils
 import torch.nn as nn
 import torch.optim as optim
+from torchvision.utils import make_grid
 import matplotlib.pyplot as plt
 import numpy as np
 
-import discriminator as dc
-import generator as gn
-import data_utils
-import common_utils
-import loss_utils
+from models import discriminator as dsc
+from models import generator as gnr
+from utils import data_utils, loss_utils
 
-dataroot = "data/celeba"
-# Number of GPUs available. Use 0 for CPU mode.
-ngpu = 1
-# Number of channels in the training images. For color images this is 3
-op_chnls = 3 
+ngpu = torch.cuda.device_count()
+op_chnls = 3
 ftr_map_size_dc = 64
 ftr_map_size_gn = 64
 latent_vector_size = 100
-# Number of workers for dataloader
-workers = 2
-workers = 0
-# Batch size during training
-batch_size = 128
-# Number of training epochs
-num_epochs = 5
-# Learning rate for optimizers
 lr = 0.0002
-# Beta1 hyperparam for Adam optimizers
 beta1 = 0.5
-# Spatial size of training images. All images will be resized to this
-#   size using a transformer.
+beta2 = 0.999
+num_epochs = 5
+
+data_dir = "data"
 image_size = 64
+batch_size = 128
+num_workers = 0
 
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-dataloader = data_utils.get_datloader(dataroot, image_size, batch_size, True, workers)
+netD = dsc.DCGANDiscriminator(op_chnls, ftr_map_size_dc)
+netG = gnr.DCGANGenerator(latent_vector_size, ftr_map_size_gn, op_chnls)
+netD.to(device)
+netG.to(device)
 
-device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu >0) else "cpu")
-
-real_batch = next(iter(dataloader))
-plt.figure(figsize=(8,8))
-plt.axis("off")
-plt.title("Training Images")
-plt.imshow(np.transpose(vutils.make_grid(real_batch[0].to(device)[:64], 
-        padding=2,normalize=True).cpu(), (1,2,0)))
-# plt.show()
-
-
-netD = dc.DCGANDiscriminator(ngpu, op_chnls, ftr_map_size_dc).to(device)
-netG = gn.DCGANGenerator(ngpu, latent_vector_size, ftr_map_size_gn, op_chnls).to(device)
-
-if (device.type == "cuda") and (ngpu > 1):
-    netG = nn.DataParallel(netG, list(range(ngpu)))
-    netD = nn.DataParallel(netD, list(range(ngpu)))
-
-netG.apply(common_utils.weights_init)
-netD.apply(common_utils.weights_init)
+if ngpu>1:
+    netD = nn.DataParallel(netD)
+    netG = nn.DataParallel(netG)
 
 criterion = loss_utils.get_bce_loss()
+optimizerD = optim.Adam(netD.parameters(), lr = lr, betas = (beta1, beta2))
+optimizerG = optim.Adam(netG.parameters(), lr = lr, betas = (beta1, beta2))
 
-fixed_noise = torch.randn(64, latent_vector_size, 1, 1, device = device)
+fixed_noise = torch.randn(64, latent_vector_size, 1, 1).to(device)
 
 real_label_identifier = 1
 fake_label_identifier = 0
 
-optimizerD = optim.Adam(netD.parameters(), lr = lr, betas = (beta1, 0.999))
-optimizerG = optim.Adam(netG.parameters(), lr = lr, betas = (beta1, 0.999))
+log_file = "TrainingLog_" + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ".txt"
+with open(log_file, "a") as f:
+    f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    f.write("\n")
+    f.write("Starting operation")
+    f.write("\n")
+    f.write("\n")
 
- 
-img_list = []
+dataloader = data_utils.get_datloader(data_dir, image_size, batch_size, True, num_workers)
 G_losses = []
 D_losses = []
-iters = 0
+gen_image_list = []
+total_iters = num_epochs * len(dataloader)
 
-for epoch in range(num_epochs):
+for epoch in range (num_epochs):
     for i, data in enumerate(dataloader, 0):
+        # get rid of any residual gradients
         netD.zero_grad()
+        netG.zero_grad()
 
+        # getitem in ImageFolder returns 2 objects - image tensor and labels. 
+        # Retrieve image tensor
         imgs = data[0].to(device)
-        b_size = imgs.size(0)
-        real_label = torch.full((b_size,), real_label_identifier, dtype = torch.float, device = device)
-        output = netD(imgs).view(-1)
+        batch_size = len(imgs)
+        
+        # create real_label and fake_label tensors to be used for calculating loss 
+        real_label = torch.full((batch_size, 1), real_label_identifier, dtype=torch.float32).to(device)
+        fake_label = torch.full((batch_size, 1), fake_label_identifier, dtype=torch.float32).to(device)
+
+
+        ##################################
+        ##    Training Discriminator    ##
+        ################################## 
+        
+        # Train discriminator on real data
+        output = netD(imgs).view(-1).unsqueeze(1)
         errD_real = criterion(output, real_label)
         errD_real.backward()
-        D_x = output.mean().item()
 
-        noise = torch.randn(b_size, latent_vector_size, 1, 1, device=device)
-        fake = netG(noise)
-        fake_label = torch.full((b_size,), fake_label_identifier, dtype = torch.float, device = device)
-        output = netD(fake.detach()).view(-1)
+        # Train discriminator on fake data
+        # Generate fake data first
+        noise = torch.randn(batch_size, latent_vector_size, 1, 1, dtype=torch.float32).to(device)
+        fake_imgs = netG(noise)
+        output = netD(fake_imgs.detach()).view(-1).unsqueeze(1)
         errD_fake = criterion(output, fake_label)
         errD_fake.backward()
-        D_G_z1 = output.mean().item()
-        errD = errD_real + errD_fake
 
+        # get total loss for discriminator
+        errD = errD_real + errD_fake
+        lossD = errD.item()
+
+        # step through the optimizer for discriminator
         optimizerD.step()
 
 
-        netG.zero_grad()
-        output = netD(fake).view(-1)
+        ##################################
+        ##      Training Generator      ##
+        ################################## 
+        
+        # as we have applied optimizer.step on discriminator once,
+        # we need to generate the output from discriminator once again.
+        output = netD(fake_imgs).view(-1).unsqueeze(1)
+        
+        # While training the generator, real_label is the target
         errG = criterion(output, real_label)
+        lossG = errG.item()
         errG.backward()
-        D_G_z2 = output.mean().item()
+        
+        # step through the optimizer for generator
         optimizerG.step()
+        
+        if (i % 50 == 0):
+            G_losses.append(errG.item())
+            D_losses.append(errD.item())
 
 
-        if i % 50 == 0:
-            print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                  % (epoch, num_epochs, i, len(dataloader),
-                     errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
+            log_text = ("Epoch {cur_epch}/{epc}, Iteration: {cur_itr}/{itrs} \tLoss_G: {lg:.4f}\tLoss_D: {ld:.4f}".format
+                (cur_epch=epoch+1, epc=num_epochs, cur_itr=i+1, itrs=len(dataloader), lg=errG.item(), ld=errD.item()))
+            print (log_text)
 
-        G_losses.append(errG.item())
-        D_losses.append(errD.item())
+            with open(log_file, "a") as f:
+                f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                f.write("\n")
+                f.write(log_text)
+                f.write("\n")
+                f.write("\n")
+            
+        if (i % 500 == 0):
+            gen_image = netG(fixed_noise)
+            gen_image_list.append(gen_image.detach()[0:8, :, :, :])
+        print ("\n")
 
-        if (iters % 500 ==0) or ((epoch == num_epochs -1) and (i == len(dataloader) -1)):
-            with torch.no_grad():
-                fake = netG(fixed_noise).detach().cpu()
-            img_list.append(vutils.make_grid(fake, padding = 2, normalize=True))
-        iters += 1
+    netD_checkpoint = "checkpoint_netD_" + str(epoch) + ".pt"
+    netG_checkpoint = "checkpoint_netG_" + str(epoch) + ".pt"
+    torch.save(netD.state_dict(), netD_checkpoint)
+    torch.save(netG.state_dict(), netG_checkpoint)
 
-plt.figure(figsize=(10,5))
-plt.title("Generator and Discriminator Loss During Training")
-plt.plot(G_losses,label="G")
-plt.plot(D_losses,label="D")
-plt.xlabel("iterations")
+torch.save(netD.state_dict(), "netD_final.pt")
+torch.save(netG.state_dict(), "netG_final.pt")
+
+# plot the losses over iterations
+iters = np.linspace(0, total_iters, len(G_losses))
+
+f = plt.figure()
+f.set_figwidth(8)
+f.set_figheight(8)
+plt.plot(iters, G_losses, color="red", label="G_loss")
+plt.plot(iters, D_losses, color="yellow", label="D_loss")
+plt.title("Losses vs Iterations")
 plt.ylabel("Loss")
+plt.xlabel("Iteration")
 plt.legend()
-plt.show()
+plt.savefig("loss_iter.png")
+
+# save generated images after 500 iterations to disk
+gen_image_tensor = torch.cat(gen_image_list, 0)
+grid = make_grid(gen_image_tensor.detach().cpu().clone(), padding = 5, normalize=True)
+f = plt.figure(clear=True)
+plt.imshow(grid.permute(1,2,0))
+plt.axis("off")
+plt.savefig("generated_images.png")
+
+# save last batch of generated images to disk
+f = plt.figure(clear=True)
+grid = make_grid(gen_image_list[len(gen_image_list)-1].detach().cpu().clone(), 
+    padding = 5, normalize=True)
+plt.imshow(grid.permute(1,2,0))
+plt.axis("off")
+plt.savefig("last_generated.png")
+
+with open(log_file, "a") as f:
+    f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    f.write("\n")
+    f.write("Ending operation")
+    f.write("\n")
+    f.write("\n")
