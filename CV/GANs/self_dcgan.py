@@ -146,8 +146,7 @@ torch.save(netD.state_dict(), "netD_final.pt")
 torch.save(netG.state_dict(), "netG_final.pt")
 
 # plot the losses over iterations
-iter_step = (int) (total_iters/len(G_losses))
-iters = np.array(range(0, total_iters, iter_step))
+iters = np.linspace(0, total_iters, len(G_losses))
 
 f = plt.figure()
 f.set_figwidth(8)
