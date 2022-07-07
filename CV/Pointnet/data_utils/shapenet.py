@@ -1,16 +1,16 @@
 import os
 import json
 
+import numpy as np
+
+from torch.utils.data import Dataset, DataLoader
 import torch
-from torch import nn
-from torch.utils.data import Dataset
 
 class Shapenet(Dataset):
     def __init__(self, root_dir, split_file) -> None:
         super().__init__()
         self.root_dir = root_dir
-        self.split_file = split_file
-
+        
         map_file = os.path.join(root_dir, "synsetoffset2category.txt")
         with open(map_file) as mf:
             lines = mf.readlines()
@@ -23,6 +23,29 @@ class Shapenet(Dataset):
         self.data = [(path.split("shape_data/")[1]) for path in split_file]
         
 
+    def __getitem__(self, idx):
+        cur_data = self.data[idx].split("/")
+        file_path = os.path.join(self.root_dir, cur_data[0], "points", cur_data[1] + ".pts")
+        with open(file_path) as pt_dt:
+            rows = [row.split() for row in pt_dt]
+
+        pt_array = np.array(rows).astype("float32")
+        pt_tensor = torch.tensor(pt_array)
+
+        pt_cls = self.classes[cur_data[0]]
+        
+        return pt_tensor, pt_cls
+
+    def __len__(self):
+        return len(self.data)
+
+
 if __name__ == "__main__":
     root_dir = "/Users/eureka/Desktop/3D_Data/shapenetcore_partanno_segmentation_benchmark_v0"
     shapenet = Shapenet(root_dir, "test")
+
+    # loader = DataLoader(shapenet, batch_size = 1)
+    # for index, (pt_tensor, pt_cls) in enumerate(loader):
+    #     if index == 0:
+    #         raise Exception ("Uh oh")
+
