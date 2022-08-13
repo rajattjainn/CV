@@ -1,6 +1,7 @@
 import requests
+from requests.exceptions import Timeout
 import queue, time, urllib.request
-from threading import Thread
+from threading import Thread, Event
 from datetime import datetime
 
 def perform_web_requests(addresses, no_workers):
@@ -92,8 +93,8 @@ def hit_api(url):
 # thread1.join()
 # thread2.join()
 
-REQUEST_TIMEOUT = 1
-THREAD_TIMEOUT = 1
+REQUEST_TIMEOUT = 1/20
+THREAD_TIMEOUT = 1/10
 
 class RequestThread(Thread):
     def __init__(self, url, iteration) -> None:
@@ -104,12 +105,16 @@ class RequestThread(Thread):
     def run(self):
         str_time = datetime.now()
         print ("url: " + self.url + ", iteration: " + str(self.iteration) + ", time: " + str(str_time.time()))
-        response = requests.get(self.url, timeout=REQUEST_TIMEOUT)
-        end_time = datetime.now()
-        text = "got response for url: " + self.url + ", iteration: " + str(self.iteration) + ", time: " + str(end_time.time()) + ", time diff: " + str(end_time - str_time)
-        print (text)
-        self.response = text
-
+        try:
+            response = requests.get(self.url, timeout=REQUEST_TIMEOUT)
+            end_time = datetime.now()
+            text = "got response for url: " + self.url + ", iteration: " + str(self.iteration) + ", time: " + str(end_time.time()) + ", time diff: " + str(end_time - str_time)
+            print (text)
+            self.response = text
+        except Timeout:
+            self.response = False
+            print ("timed out, url: " + self.url + ", iteration: " + str(self.iteration) + ", time: " + str(str_time.time()))
+        
 
 for i in range(3):
     print ("\n\nstartingiteration: " + str(i))
@@ -122,8 +127,8 @@ for i in range(3):
     thread1.start()
     current_time = datetime.now().time()
     print ("thread 1 started, " + str(current_time))
-
     thread2 = RequestThread(urls[1], i)
+
     current_time = datetime.now().time()
     print ("thread 2 starting, " + str(current_time))
     thread2.start()
@@ -136,16 +141,21 @@ for i in range(3):
     print ("joined thread 2, " + str(current_time))
 
     if (thread1.is_alive() or thread2.is_alive()):
-        print ("can I exit ?")
+        print ("Threads not returned in given timeframe, exiting this iteration")
+        # TODo: kill the threads
     else:
-        print ("Both threads ended, results:")
         resp1 = thread1.response
         resp2 = thread2.response
+
+        if (resp1 and resp2):
+            print ("Both threads ended, results:")
+            print (resp1)
+            print (resp2)
+        else:
+            print ("requests didn't complete in the given time")
+
         end_time = datetime.now()
-        # print (type(end_time))
+        print ("Iteration Time:")
         print (end_time - start_time)
 
     print ("ending iteration: " + str(i))
-
-
-
