@@ -1,0 +1,1 @@
+A very simple program to count the number of people in a given video feed.
