@@ -1,1 +1,1 @@
-This repository contains all the code I wrote while learning ML.
+This repository contains all the code I wrote while learning the concepts of CV.
